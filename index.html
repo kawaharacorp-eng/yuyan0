@@ -40,7 +40,7 @@ header{display:flex;align-items:center;gap:10px;padding:10px 14px 8px}
 .tab{padding:9px 6px;border-radius:10px;font-weight:700;font-size:15px;color:var(--dim)}
 .tab small{display:block;font-weight:500;font-size:11px;opacity:.8;margin-top:1px}
 .tab.sel{background:var(--accent);color:var(--accent-ink)}
-main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px 14px 16px;scroll-behavior:smooth}
+main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px 14px 16px}
 .seg{margin:0 0 14px;max-width:100%}
 .seg .tr{font-size:var(--fs);line-height:1.45;font-weight:650;word-break:break-word}
 .seg .src{font-size:calc(var(--fs)*.62);line-height:1.5;color:var(--dim);margin-top:3px;word-break:break-word}
@@ -66,9 +66,14 @@ footer{padding:8px 14px calc(10px + var(--sab));background:linear-gradient(180de
 .side.r{justify-content:flex-end}
 .chip{min-width:44px;height:44px;padding:0 12px;border-radius:14px;background:var(--panel);font-size:14px;font-weight:700;color:var(--text);display:grid;place-items:center}
 .chip.on{background:var(--accent);color:var(--accent-ink)}
-.go{--lv:0;position:relative;width:86px;height:86px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-weight:900;font-size:17px;
-  box-shadow:0 0 0 calc(var(--lv)*22px) rgba(255,179,71,.18),0 8px 26px rgba(0,0,0,.45);transition:box-shadow .09s linear,background .2s}
-.go.run{background:var(--danger);color:#fff;box-shadow:0 0 0 calc(var(--lv)*22px) rgba(255,107,94,.22),0 8px 26px rgba(0,0,0,.45)}
+.go{position:relative;width:86px;height:86px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-weight:900;font-size:17px}
+.go.run{background:var(--danger);color:#fff}
+.ring{position:absolute;inset:0;border-radius:50%;background:var(--accent);opacity:.22;transform:scale(1);will-change:transform;pointer-events:none;z-index:-1}
+.go.run .ring{background:var(--danger)}
+.gowrap{position:relative;z-index:0}
+.langs{display:flex;align-items:center;gap:6px;margin:0 14px 6px;font-size:13px;color:var(--dim);overflow-x:auto}
+.langs button{padding:6px 12px;border-radius:999px;background:var(--panel);color:var(--text);font-weight:700;font-size:13px;white-space:nowrap}
+.langs button.sel{background:var(--panel2);color:var(--accent);box-shadow:inset 0 0 0 1.5px var(--accent)}
 .go small{display:block;font-size:10px;font-weight:700;opacity:.75;margin-top:1px}
 /* 设置面板 */
 .sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;z-index:40}
@@ -116,6 +121,7 @@ footer{padding:8px 14px calc(10px + var(--sab));background:linear-gradient(180de
   <button class="tab sel" data-mode="talk">面对面对话<small id="tabTalkSub">中文 ⇄ 日语</small></button>
   <button class="tab" data-mode="listen">收听 · 字幕<small id="tabListenSub">电视 / 广播 / 会议 → 中文</small></button>
 </div>
+<div class="langs" id="langs"><span>对方语言</span></div>
 <main id="list"></main>
 <div class="toast" id="toast"></div>
 <footer>
@@ -123,7 +129,7 @@ footer{padding:8px 14px calc(10px + var(--sab));background:linear-gradient(180de
     <button class="chip" id="btnFsDown" aria-label="字体缩小">A−</button>
     <button class="chip" id="btnFsUp" aria-label="字体放大">A+</button>
   </div>
-  <button class="go" id="btnGo">开始<small id="goSub">点一下</small></button>
+  <div class="gowrap"><span class="ring" id="ring"></span><button class="go" id="btnGo">开始<small id="goSub">点一下</small></button></div>
   <div class="side r">
     <button class="chip" id="btnTts" aria-label="朗读译文">🔈</button>
     <button class="chip" id="btnClear" aria-label="清空">清空</button>
@@ -163,6 +169,7 @@ footer{padding:8px 14px calc(10px + var(--sab));background:linear-gradient(180de
     <input type="text" id="inModel" autocapitalize="off" spellcheck="false">
   </div>
   <button class="btn-line" id="btnCopy">复制全部记录</button>
+  <div class="hint" style="text-align:center;color:var(--dim);font-size:12px;margin-top:12px">版本 1.1</div>
 </div>
 
 <div class="big" id="big">
@@ -176,6 +183,7 @@ footer{padding:8px 14px calc(10px + var(--sab));background:linear-gradient(180de
 "use strict";
 var WS_URL="wss://stt-rt.soniox.com/transcribe-websocket";
 var LANGS={zh:"中文",ja:"日语",en:"英语",ko:"韩语",vi:"越南语",th:"泰语"};
+var QUICK=["ja","en","ko"];
 var TTS_LANG={zh:"zh-CN",ja:"ja-JP",en:"en-US",ko:"ko-KR",vi:"vi-VN",th:"th-TH"};
 var $=function(id){return document.getElementById(id)};
 
@@ -197,7 +205,9 @@ var segs=[];            // {id,lang,speaker,src,tr,ended,gotTr,spoken,el}
 var nf={src:"",tr:"",lang:null,speaker:null};
 var running=false, ws=null, wsOpen=false, wsTriedFallback=false, pending=[], reconnects=0, reconnectTimer=null;
 var audioCtx=null, micStream=null, node=null, srcNode=null, sink=null;
-var muted=false, wakeLock=null, startedAt=0, tick=null, segId=0, fatal=false;
+var muteUntil=0, wakeLock=null, startedAt=0, tick=null, segId=0, fatal=false;
+var lastChunkAt=0, lastMsgAt=0, lastLoudAt=0, restartingAudio=false, audioRestarts=0, renderQueued=false, speakTick=null, lvShown=-1;
+function isMuted(){return Date.now()<muteUntil}
 
 /* ---------- 界面基础 ---------- */
 var list=$("list");
@@ -221,6 +231,18 @@ function applyCfg(){
   $("tabListenSub").textContent="电视 / 广播 / 会议 → "+LANGS[cfg.my];
   $("btnTts").classList.toggle("on",cfg.tts);
   $("btnTts").textContent=cfg.tts?"🔊":"🔈";
+  var box=$("langs"); while(box.children.length>1) box.removeChild(box.lastChild);
+  var ql=QUICK.filter(function(k){return k!==cfg.my}); if(ql.indexOf(cfg.other)<0) ql.unshift(cfg.other);
+  ql.forEach(function(k){
+    var b=document.createElement("button"); b.textContent=LANGS[k]; if(k===cfg.other) b.className="sel";
+    b.onclick=function(){
+      if(k===cfg.other) return;
+      var was=running; if(was) stop();
+      cfg.other=k; save("other"); applyCfg(); renderEmpty();
+      if(was) setTimeout(start,300);
+    };
+    box.appendChild(b);
+  });
 }
 function renderEmpty(){
   if(segs.length||nf.src||nf.tr) return;
@@ -273,6 +295,11 @@ function paintSeg(s,nfSrc,nfTr){
   el.children[0].textContent=who; el.children[0].style.display=who?"":"none";
 }
 function render(){
+  if(renderQueued) return; renderQueued=true;
+  (window.requestAnimationFrame||function(f){setTimeout(f,50)})(doRender);
+}
+function doRender(){
+  renderQueued=false;
   var stick=nearBottom();
   var n=segs.length;
   if(!n&&(nf.src||nf.tr)){mkSeg(nf.lang,nf.speaker); n=1}
@@ -318,39 +345,41 @@ function onTokens(tokens){
   var lastSeg=segs[segs.length-1];
   if(nSrc.trim()&&lastSeg&&(lastSeg.ended||(nLang&&lastSeg.lang&&nLang!==lastSeg.lang))) mkSeg(nLang,nSpk);
   nf.src=nSrc; nf.tr=nTr; nf.lang=nLang; nf.speaker=nSpk;
-  render(); maybeSpeak();
+  render();
 }
 
 /* ---------- 朗读 ---------- */
-var synth=window.speechSynthesis||null, speakTimer=null;
-function speak(text,lang,done){
-  if(!synth||!text){ if(done) done(); return }
+var synth=window.speechSynthesis||null, keepUtter=[];
+function speak(text,lang){
+  if(!synth||!text) return;
   try{
-    var u=new SpeechSynthesisUtterance(text); u.lang=TTS_LANG[lang]||lang; u.rate=1;
-    var vs=synth.getVoices()||[];
-    for(var i=0;i<vs.length;i++){ if(vs[i].lang&&vs[i].lang.replace("_","-").toLowerCase().indexOf((TTS_LANG[lang]||lang).toLowerCase().slice(0,2))===0){u.voice=vs[i];break} }
-    muted=true;
-    var fin=function(){ setTimeout(function(){muted=false},250); if(done) done() };
+    var u=new SpeechSynthesisUtterance(text); u.lang=TTS_LANG[lang]||lang; u.rate=1; u.volume=1;
+    var want=(TTS_LANG[lang]||lang).toLowerCase().slice(0,2), vs=synth.getVoices()||[];
+    for(var i=0;i<vs.length;i++){ if(vs[i].lang&&vs[i].lang.toLowerCase().indexOf(want)===0){u.voice=vs[i];break} }
+    // 朗读期间暂停收音，避免把自己读的话又翻译回来；按字数估时长，绝不会一直卡在静音
+    var est=Math.min(15000,900+text.length*230);
+    muteUntil=Math.max(muteUntil,Date.now())+est;
+    var fin=function(){ muteUntil=Date.now()+300; var k=keepUtter.indexOf(u); if(k>=0) keepUtter.splice(k,1) };
     u.onend=fin; u.onerror=fin;
+    keepUtter.push(u); if(keepUtter.length>6) keepUtter.shift(); // iOS：保留引用，否则会被回收而不发声
+    if(synth.paused) synth.resume();
     synth.speak(u);
-    setTimeout(function(){ if(muted&&!synth.speaking) muted=false },15000);
-  }catch(e){ muted=false; if(done) done() }
+  }catch(e){ muteUntil=0 }
 }
-function maybeSpeak(){
-  if(!cfg.tts||cfg.mode!=="talk"||!synth) return;
-  clearTimeout(speakTimer);
-  speakTimer=setTimeout(function(){
-    for(var i=Math.max(0,segs.length-3);i<segs.length;i++){
-      var s=segs[i];
-      if(!s.spoken&&s.lang===cfg.my&&s.tr&&(s.ended||i<segs.length-1)&&Date.now()-s.trAt>600){
-        s.spoken=true; speak(s.tr.trim(),cfg.other);
-      }
-    }
-  },750);
+function checkSpeak(){
+  if(!running||!cfg.tts||cfg.mode!=="talk"||!synth) return;
+  var now=Date.now(), n=segs.length;
+  for(var i=Math.max(0,n-3);i<n;i++){
+    var s=segs[i];
+    if(s.spoken||!s.tr||s.lang!==cfg.my) continue;
+    var last=(i===n-1), settled=now-s.trAt;
+    if(last&&nf.tr) continue;                       // 译文还在出
+    if((s.ended||!last)&&settled>500 || settled>1800){ s.spoken=true; speak(s.tr.trim(),cfg.other) }
+  }
 }
-function unlockTts(){ // iOS 需要在点击时先“解锁”一次语音
+function unlockTts(){ // iOS 需要在手指点击时先“解锁”一次语音
   if(!synth) return;
-  try{ var u=new SpeechSynthesisUtterance(" "); u.volume=0; synth.speak(u) }catch(e){}
+  try{ var u=new SpeechSynthesisUtterance(" "); u.volume=0; keepUtter.push(u); synth.speak(u) }catch(e){}
 }
 
 /* ---------- 大字展示 ---------- */
@@ -395,13 +424,14 @@ function connect(useProto){
   sock.onopen=function(){
     if(ws!==sock) return;
     sock.send(JSON.stringify(buildConfig(!useProto)));
-    wsOpen=true; reconnects=0;
+    wsOpen=true; reconnects=0; lastMsgAt=Date.now();
     for(var i=0;i<pending.length;i++) sock.send(pending[i]);
     pending=[];
     setStatus("on","正在听 "+elapsed());
   };
   sock.onmessage=function(ev){
     if(ws!==sock) return;
+    lastMsgAt=Date.now();
     var m; try{m=JSON.parse(ev.data)}catch(e){return}
     if(m.error_code||m.error_type){ onServerError(m); return }
     if(m.tokens&&m.tokens.length) onTokens(m.tokens);
@@ -419,13 +449,13 @@ function connect(useProto){
 function scheduleReconnect(){
   if(!running) return;
   reconnects++;
-  if(reconnects>8){ fail("连接多次失败，请检查网络后重新开始。"); return }
+  if(reconnects>12){ fail("连接多次失败，请检查网络后重新开始。"); return }
   // 把未定稿的内容固定下来，避免重连后丢字
   if(nf.src||nf.tr){ var s=segs[segs.length-1]||mkSeg(nf.lang,nf.speaker); s.src+=nf.src; if(nf.tr){s.tr+=nf.tr;s.gotTr=true} s.ended=true; nf.src="";nf.tr=""; render() }
   else if(segs.length) segs[segs.length-1].ended=true;
   setStatus("wait","重新连接…");
   clearTimeout(reconnectTimer);
-  reconnectTimer=setTimeout(function(){ if(running) connect(!wsTriedFallback) }, Math.min(400*reconnects,3000));
+  reconnectTimer=setTimeout(function(){ reconnectTimer=null; if(running) connect(!wsTriedFallback) }, Math.min(400*reconnects,3000));
 }
 function onServerError(m){
   var code=m.error_code, msg=m.error_message||m.error_type||"";
@@ -441,14 +471,20 @@ function fail(msg){ fatal=true; toast(msg,false,9000); stop(); setStatus("err","
 var WORKLET='class P extends AudioWorkletProcessor{constructor(){super();this.r=sampleRate/16000;this.a=0;this.s=0;this.c=0;this.o=new Int16Array(1600);this.n=0}'+
 'process(i){var ch=i[0]&&i[0][0];if(!ch)return true;for(var k=0;k<ch.length;k++){this.s+=ch[k];this.c++;this.a+=1;if(this.a>=this.r){this.a-=this.r;var v=this.s/this.c;this.s=0;this.c=0;'+
 'if(v>1)v=1;else if(v<-1)v=-1;this.o[this.n++]=v<0?v*32768:v*32767;if(this.n===1600){this.port.postMessage(this.o.buffer.slice(0));this.n=0}}}return true}}registerProcessor("y0pcm",P);';
-var silent=new ArrayBuffer(3200), lvSmooth=0;
+var silent=new ArrayBuffer(3200), lvSmooth=0, chunkN=0;
 function onChunk(buf){
+  lastChunkAt=Date.now();
   if(!running) return;
-  var a=new Int16Array(buf), sum=0;
-  for(var i=0;i<a.length;i+=8){var v=a[i]/32768; sum+=v*v}
-  var rms=Math.sqrt(sum/(a.length/8)); lvSmooth=lvSmooth*.6+Math.min(1,rms*9)*.4;
-  $("btnGo").style.setProperty("--lv",muted?0:lvSmooth.toFixed(3));
-  var out=muted?silent:buf;
+  var m=isMuted();
+  if((++chunkN&1)===0){ // 音量指示：每 0.2 秒更新一次，只动 transform，省电不卡
+    var a=new Int16Array(buf), sum=0;
+    for(var i=0;i<a.length;i+=16){var v=a[i]/32768; sum+=v*v}
+    var lv=Math.min(1,Math.sqrt(sum/(a.length/16))*9); lvSmooth=lvSmooth*.5+lv*.5;
+    if(lv>.12) lastLoudAt=lastChunkAt;
+    var show=m?0:Math.round(lvSmooth*10);
+    if(show!==lvShown){ lvShown=show; $("ring").style.transform="scale("+(1+show*.045)+")" }
+  }
+  var out=m?silent:buf;
   if(ws&&wsOpen&&ws.readyState===1){ ws.send(out) }
   else if(pending.length<80){ pending.push(out) }
 }
@@ -465,11 +501,14 @@ function getStream(){
 }
 function startAudio(){
   var AC=window.AudioContext||window.webkitAudioContext;
+  try{ if(navigator.audioSession) navigator.audioSession.type="play-and-record" }catch(e){}
   audioCtx=new AC({latencyHint:"interactive"});
+  var ctx=audioCtx;
+  ctx.onstatechange=function(){ if(running&&audioCtx===ctx&&ctx.state!=="running"&&ctx.state!=="closed") ctx.resume().catch(function(){}) };
   var resume=audioCtx.state==="suspended"?audioCtx.resume():Promise.resolve();
   return resume.then(getStream).then(function(stream){
     micStream=stream;
-    stream.getAudioTracks()[0].onended=function(){ if(running){ toast("声音来源已断开。",true); stop() } };
+    stream.getAudioTracks()[0].onended=function(){ if(!running) return; if(cfg.src==="tab"){ toast("声音来源已断开。",true); stop() } else restartAudio() };
     srcNode=audioCtx.createMediaStreamSource(stream);
     sink=audioCtx.createGain(); sink.gain.value=0; sink.connect(audioCtx.destination);
     var legacy=function(){ // 兜底：本地文件打开或旧浏览器
@@ -493,11 +532,28 @@ function startAudio(){
     legacy();
   });
 }
+function restartAudio(){ // 手机上麦克风被系统打断（来电、朗读、切后台）后自动恢复
+  if(!running||restartingAudio) return;
+  if(++audioRestarts>6){ fatal=true; toast("麦克风多次中断，请重新点「开始」。",false,8000); stop(); setStatus("err","已停止"); return }
+  restartingAudio=true; stopAudio();
+  startAudio().then(function(){ restartingAudio=false; lastChunkAt=Date.now(); if(!running) stopAudio() },
+    function(){ restartingAudio=false; lastChunkAt=Date.now() });
+}
+function watchdog(){
+  if(!running) return;
+  var now=Date.now();
+  if(wsOpen) setStatus("on","正在听 "+elapsed());
+  if(audioCtx&&audioCtx.state!=="running"&&audioCtx.state!=="closed") audioCtx.resume().catch(function(){});
+  if(!restartingAudio&&now-lastChunkAt>4000&&!isMuted()&&document.visibilityState==="visible") restartAudio();
+  if(now-lastChunkAt<1500&&audioRestarts>0&&now-startedAt>20000) audioRestarts=Math.max(0,audioRestarts-0.02);
+  if(!ws&&!reconnectTimer&&!fatal) connect(!wsTriedFallback);
+  else if(ws&&wsOpen&&now-lastMsgAt>12000&&now-lastLoudAt<4000){ try{ws.close()}catch(e){} } // 有声音却长时间没回应：重连
+}
 function stopAudio(){
   try{ if(node){ node.disconnect(); if(node.port) node.port.onmessage=null; node.onaudioprocess=null } }catch(e){}
   try{ if(srcNode) srcNode.disconnect() }catch(e){}
   try{ if(micStream) micStream.getTracks().forEach(function(t){t.onended=null;t.stop()}) }catch(e){}
-  try{ if(audioCtx) audioCtx.close() }catch(e){}
+  try{ if(audioCtx){ audioCtx.onstatechange=null; audioCtx.close() } }catch(e){}
   node=srcNode=micStream=audioCtx=sink=null;
 }
 
@@ -516,17 +572,17 @@ function start(){
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
     toast("这个页面需要通过 https 网址打开才能使用麦克风。"); return;
   }
-  fatal=false; running=true; reconnects=0; wsTriedFallback=false; pending=[]; muted=false;
+  fatal=false; running=true; reconnects=0; wsTriedFallback=false; pending=[]; muteUntil=0; audioRestarts=0; restartingAudio=false;
   $("btnGo").classList.add("run"); $("btnGo").firstChild.nodeValue="停止"; $("goSub").textContent="正在听";
   setStatus("wait","准备麦克风…");
-  if(cfg.tts) unlockTts();
+  unlockTts();
   startAudio().then(function(){
     if(!running){ stopAudio(); return }
-    startedAt=Date.now();
+    startedAt=lastChunkAt=lastMsgAt=Date.now();
     if(segs.length) segs[segs.length-1].ended=true;
     connect(true); acquireWake();
-    clearInterval(tick);
-    tick=setInterval(function(){ if(running&&wsOpen) setStatus("on","正在听 "+elapsed()) },1000);
+    clearInterval(tick); clearInterval(speakTick);
+    tick=setInterval(watchdog,1000); speakTick=setInterval(checkSpeak,300);
   }).catch(function(e){
     running=false; stopAudio(); resetGo();
     var n=e&&e.name, msg="无法使用麦克风："+(e&&e.message||e);
@@ -537,11 +593,11 @@ function start(){
   });
 }
 function resetGo(){
-  var b=$("btnGo"); b.classList.remove("run"); b.firstChild.nodeValue="开始"; $("goSub").textContent="点一下"; b.style.setProperty("--lv",0);
+  var b=$("btnGo"); b.classList.remove("run"); b.firstChild.nodeValue="开始"; $("goSub").textContent="点一下"; $("ring").style.transform="scale(1)"; lvShown=-1;
 }
 function stop(){
   var was=running; running=false;
-  clearInterval(tick); clearTimeout(reconnectTimer);
+  clearInterval(tick); clearInterval(speakTick); clearTimeout(reconnectTimer); reconnectTimer=null;
   stopAudio();
   var sock=ws;
   if(sock){
@@ -550,7 +606,7 @@ function stop(){
   }
   if(wakeLock){ try{wakeLock.release()}catch(e){} wakeLock=null }
   if(synth) try{synth.cancel()}catch(e){}
-  muted=false; resetGo();
+  muteUntil=0; resetGo();
   if(was&&!fatal) setStatus("","已停止");
   if(nf.src||nf.tr){ var s=segs[segs.length-1]; if(s){ s.src+=nf.src; if(nf.tr){s.tr+=nf.tr;s.gotTr=true} } nf.src="";nf.tr=""; render() }
 }
@@ -559,7 +615,7 @@ document.addEventListener("visibilitychange",function(){
   if(document.visibilityState==="visible"&&running){
     acquireWake();
     if(audioCtx&&audioCtx.state!=="running") audioCtx.resume().catch(function(){});
-    if(!ws&&!fatal) connect(!wsTriedFallback);
+    if(!ws&&!reconnectTimer&&!fatal) connect(!wsTriedFallback);
   }
 });
 
