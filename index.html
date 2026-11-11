@@ -62,9 +62,10 @@ body.mode-listen .seg:last-child{border-left-color:var(--accent)}
   padding:11px 14px;border-radius:12px;font-size:14px;line-height:1.5;display:none;z-index:30}
 .toast.info{background:var(--panel2);color:var(--text);border-color:var(--line)}
 footer{padding:8px 14px calc(10px + var(--sab));background:linear-gradient(180deg,transparent,var(--bg) 22%);display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px}
-.side{display:flex;gap:8px}
+.side{display:flex;gap:6px}
+@media (max-width:400px){ .chip{min-width:40px;padding:0 9px;font-size:13px} .go{width:78px;height:78px} }
 .side.r{justify-content:flex-end}
-.chip{min-width:44px;height:44px;padding:0 12px;border-radius:14px;background:var(--panel);font-size:14px;font-weight:700;color:var(--text);display:grid;place-items:center}
+.chip{min-width:44px;height:44px;padding:0 10px;white-space:nowrap;border-radius:14px;background:var(--panel);font-size:14px;font-weight:700;color:var(--text);display:grid;place-items:center}
 .chip.on{background:var(--accent);color:var(--accent-ink)}
 .go{position:relative;width:86px;height:86px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-weight:900;font-size:17px}
 .go.run{background:var(--danger);color:#fff}
@@ -133,11 +134,12 @@ footer{padding:8px 14px calc(10px + var(--sab));background:linear-gradient(180de
   <div class="side">
     <button class="chip" id="btnFsDown" aria-label="字体缩小">A−</button>
     <button class="chip" id="btnFsUp" aria-label="字体放大">A+</button>
+    <button class="chip" id="btnHs" aria-label="耳机模式" style="font-size:13px">🎧</button>
   </div>
   <div class="gowrap"><span class="ring" id="ring"></span><button class="go" id="btnGo">开始<small id="goSub">点一下</small></button></div>
   <div class="side r">
-    <button class="chip" id="btnTts" aria-label="朗读译文">🔈</button>
-    <button class="chip" id="btnClear" aria-label="清空">清空</button>
+    <button class="chip" id="btnTts" aria-label="朗读译文" style="font-size:14px">🔈</button>
+    <button class="chip" id="btnClear" aria-label="清空">🗑</button>
   </div>
 </footer>
 
@@ -161,7 +163,15 @@ footer{padding:8px 14px calc(10px + var(--sab));background:linear-gradient(180de
     </select>
   </div>
   <label class="sw"><span>显示原文<small>译文下方显示日语原文，顺便练听力</small></span><input type="checkbox" id="swSrc"></label>
-  <label class="sw"><span>自动朗读译文<small>对话模式：我说中文后，用日语读给对方听</small></span><input type="checkbox" id="swTts"></label>
+  <label class="sw"><span>对话：读我的话给对方听<small>我说中文 → 外放日语</small></span><input type="checkbox" id="swReadMe"></label>
+  <label class="sw"><span>对话：读对方的话给我听<small>对方说日语 → 读中文（适合戴耳机）</small></span><input type="checkbox" id="swReadThem"></label>
+  <label class="sw"><span>收听：边听边读中文<small>广播、电视、会议同声传译</small></span><input type="checkbox" id="swReadListen"></label>
+  <label class="sw"><span>耳机模式 🎧<small>戴耳机时打开：朗读时不暂停收听</small></span><input type="checkbox" id="swHs"></label>
+  <div class="row2" style="margin-top:8px">
+    <div class="f"><label>朗读语速</label><select id="selRate"><option value="1">正常</option><option value="1.15">稍快</option><option value="1.3">快</option><option value="1.5">很快</option></select></div>
+    <div class="f"><label>麦克风</label><select id="selMic"><option value="">默认</option></select></div>
+  </div>
+  <div class="f" style="margin-top:-6px"><div class="hint">戴蓝牙耳机收听电视/广播时，建议麦克风选「iPhone 麦克风」，否则会用耳机上的麦克风收音。</div></div>
   <div class="row2" style="margin-top:6px">
     <div class="f"><label>朗读声音</label><select id="selVoiceSrc"><option value="soniox">自然人声（推荐）</option><option value="sys">手机系统声音</option></select></div>
     <div class="f"><label>人声音色</label><select id="selVoice"></select></div>
@@ -180,7 +190,7 @@ footer{padding:8px 14px calc(10px + var(--sab));background:linear-gradient(180de
   </div>
   <label class="sw"><span>显示诊断信息<small>出问题时打开，截图发给开发者</small></span><input type="checkbox" id="swDiag"></label>
   <button class="btn-line" id="btnCopy">复制全部记录</button>
-  <div class="hint" style="text-align:center;color:var(--dim);font-size:12px;margin-top:12px">版本 1.3</div>
+  <div class="hint" style="text-align:center;color:var(--dim);font-size:12px;margin-top:12px">版本 1.4</div>
 </div>
 
 <div class="big" id="big">
@@ -206,7 +216,8 @@ var store={
 var cfg={
   key:store.get("key",""), my:store.get("my","zh"), other:store.get("other","ja"),
   mode:store.get("mode","talk"), fs:store.get("fs",22), showSrc:store.get("showSrc",true),
-  tts:store.get("tts",false), spk:store.get("spk",false), wake:store.get("wake",true),
+  tts:store.get("tts",false), readMe:store.get("readMe",store.get("tts",false)), readThem:store.get("readThem",false),
+  readListen:store.get("readListen",false), headset:store.get("headset",false), rate:store.get("rate",1), micId:store.get("micId",""), spk:store.get("spk",false), wake:store.get("wake",true),
   terms:store.get("terms",""), model:store.get("model","stt-rt-v6"), src:"mic",
   voiceSrc:store.get("voiceSrc","soniox"), voice:store.get("voice","Emma"), diag:store.get("diag",false)
 };
@@ -241,8 +252,8 @@ function applyCfg(){
   for(var i=0;i<tabs.length;i++) tabs[i].classList.toggle("sel",tabs[i].dataset.mode===cfg.mode);
   $("tabTalkSub").textContent=LANGS[cfg.my]+" ⇄ "+LANGS[cfg.other];
   $("tabListenSub").textContent="电视 / 广播 / 会议 → "+LANGS[cfg.my];
-  $("btnTts").classList.toggle("on",cfg.tts);
-  $("btnTts").textContent=cfg.tts?"🔊":"🔈";
+  var rd=readLabel(); $("btnTts").classList.toggle("on",rd.on); $("btnTts").textContent=rd.t;
+  $("btnHs").classList.toggle("on",cfg.headset); $("btnHs").textContent="🎧";
   var box=$("langs"); while(box.children.length>1) box.removeChild(box.lastChild);
   var ql=QUICK.filter(function(k){return k!==cfg.my}); if(ql.indexOf(cfg.other)<0) ql.unshift(cfg.other);
   ql.forEach(function(k){
@@ -267,10 +278,10 @@ function renderEmpty(){
       '<button class="cta" id="ctaKey">粘贴 API Key</button></div>';
   }else if(cfg.mode==="talk"){
     h='<div class="empty"><h2>面对面对话</h2>把手机放在两人中间，点「开始」。<br>对方说'+LANGS[cfg.other]+' → 你看到'+LANGS[cfg.my]+
-      '；你说'+LANGS[cfg.my]+' → 屏幕出现'+LANGS[cfg.other]+'。<br>点任意一条可以<b>放大</b>给对方看，🔈 可以开启自动朗读。</div>';
+      '；你说'+LANGS[cfg.my]+' → 屏幕出现'+LANGS[cfg.other]+'。<br>点任意一条可以<b>放大</b>给对方看。<br>🔈 按钮切换朗读：读给对方 / 读给我 / 双向；戴耳机请打开 🎧。</div>';
   }else{
     h='<div class="empty"><h2>收听 · 实时字幕</h2>把手机靠近电视、收音机或会议桌，点「开始」。<br>听到的'+LANGS[cfg.other]+
-      '会一边说一边变成'+LANGS[cfg.my]+'字幕，可以连续听很久。<br>A− / A+ 调整字体大小。</div>';
+      '会一边说一边变成'+LANGS[cfg.my]+'字幕，可以连续听很久。<br>戴上耳机、打开 🎧 和 🔈，就能边听边听到'+LANGS[cfg.my]+'朗读。</div>';
   }
   list.innerHTML=h;
   var c=$("ctaKey"); if(c) c.onclick=openSheet;
@@ -392,15 +403,16 @@ function unlockPlayer(){ // 必须在手指点击时调用一次，之后 iPhone
     player.src=silentWavUrl(); var p=player.play(); if(p&&p.catch) p.catch(function(){});
   }catch(e){}
 }
-function playBuf(buf){
+function playBuf(buf,rate){
   return new Promise(function(res){
     if(!player) unlockPlayer();
     var url=URL.createObjectURL(new Blob([buf],{type:"audio/wav"})), done=false, guard=null;
     var fin=function(){ if(done) return; done=true; clearTimeout(guard); try{URL.revokeObjectURL(url)}catch(e){} res() };
     player.onended=fin; player.onerror=function(){ ttsDiag="播放失败"; fin() };
-    player.onloadedmetadata=function(){ clearTimeout(guard); guard=setTimeout(fin,(isFinite(player.duration)?player.duration*1000:8000)+1500) };
-    guard=setTimeout(fin,15000);
+    player.onloadedmetadata=function(){ clearTimeout(guard); guard=setTimeout(fin,(isFinite(player.duration)?player.duration*1000/(rate||1):8000)+1500) };
+    guard=setTimeout(fin,20000);
     player.src=url; player.volume=1;
+    try{ player.preservesPitch=true; player.webkitPreservesPitch=true; player.defaultPlaybackRate=rate||1; player.playbackRate=rate||1 }catch(e){}
     var p=player.play(); if(p&&p.catch) p.catch(function(e){ ttsDiag="播放被拦截:"+(e&&e.name); fin() });
   });
 }
@@ -410,7 +422,7 @@ function sysSpeak(text,lang){
     var done=false, fin=function(){ if(done) return; done=true; res() };
     try{
       synth.cancel();
-      var u=new SpeechSynthesisUtterance(text); u.lang=TTS_LANG[lang]||lang; u.rate=1; u.volume=1;
+      var u=new SpeechSynthesisUtterance(text); u.lang=TTS_LANG[lang]||lang; u.rate=Math.min(1.6,curRate()); u.volume=1;
       var want=(TTS_LANG[lang]||lang).toLowerCase().slice(0,2), vs=synth.getVoices()||[];
       for(var i=0;i<vs.length;i++){ if(vs[i].lang&&vs[i].lang.toLowerCase().indexOf(want)===0){u.voice=vs[i];break} }
       u.onend=fin; u.onerror=fin; keepUtter=[u];
@@ -419,10 +431,11 @@ function sysSpeak(text,lang){
     }catch(e){ fin() }
   });
 }
+function needPause(){ return !cfg.headset && cfg.src!=="tab" }
 function pauseMic(){
-  if(!running||micPaused||cfg.src==="tab") return Promise.resolve();
+  if(!running||micPaused||!needPause()) return Promise.resolve();
   micPaused=true; detachMic(); diag();
-  return new Promise(function(r){ setTimeout(r,150) });
+  return new Promise(function(r){ setTimeout(r,120) });
 }
 function resumeMic(){
   if(!micPaused) return;
@@ -430,39 +443,62 @@ function resumeMic(){
   attachMic(false).then(function(){ micPaused=false; lastChunkAt=Date.now(); hideResume(); diag() },
     function(e){ micPaused=false; showResume("读完后麦克风没能自动打开"); diag() });
 }
-function speakNow(text,lang){
-  if(cfg.voiceSrc==="sys"||!cfg.key){ ttsDiag="系统声音"; return pauseMic().then(function(){ return sysSpeak(text,lang) }) }
-  ttsDiag="生成中…"; diag();
-  var t0=Date.now();
-  return fetchTts(text,lang).then(function(buf){
-    ttsDiag="人声(生成"+((Date.now()-t0)/1000).toFixed(1)+"s)"; diag();
-    return pauseMic().then(function(){ return playBuf(buf) });
-  }).catch(function(e){
-    ttsDiag="人声失败→系统声音 ("+(e&&e.message||e)+")"; diag();
-    return pauseMic().then(function(){ return sysSpeak(text,lang) });
-  });
+function curRate(){ // 内容积压时自动加快，跟上广播
+  var r=cfg.rate||1, q=sayQ.length;
+  if(q>=1) r+=0.1; if(q>=2) r+=0.15; if(q>=4) r+=0.15;
+  return Math.min(1.8,r);
 }
 function say(text,lang){
-  if(!text) return;
-  sayQ.push([text,lang]); if(sayQ.length>4) sayQ.shift();
+  text=(text||"").trim(); if(!text) return;
+  var it={text:text,lang:lang,p:null};
+  if(cfg.voiceSrc!=="sys"&&cfg.key){ // 立刻开始生成，不等前一句读完
+    var t0=Date.now();
+    it.p=fetchTts(text,lang).then(function(buf){ it.gen=(Date.now()-t0)/1000; return buf });
+    it.p.catch(function(){});
+  }
+  sayQ.push(it);
+  while(sayQ.length>6) sayQ.shift(); // 积压太多：丢掉最旧的，保证跟得上
   nextSay();
 }
 function nextSay(){
   if(saying) return;
   var it=sayQ.shift();
   if(!it){ resumeMic(); return }
-  saying=true;
-  speakNow(it[0],it[1]).then(function(){ saying=false; nextSay() },function(){ saying=false; nextSay() });
+  saying=true; ttsDiag=it.p?"生成中…":"系统声音"; diag();
+  var done=function(){ saying=false; nextSay() };
+  var sys=function(){ return pauseMic().then(function(){ return sysSpeak(it.text,it.lang) }) };
+  var run=it.p?it.p.then(function(buf){
+      ttsDiag="人声(生成"+(it.gen||0).toFixed(1)+"s"+(sayQ.length?"，排队"+sayQ.length:"")+")"; diag();
+      return pauseMic().then(function(){ return playBuf(buf,curRate()) });
+    },function(e){ ttsDiag="人声失败→系统声音 ("+(e&&e.message||e)+")"; diag(); return sys() })
+    :sys();
+  run.then(done,done);
 }
+/* 什么时候读、读哪种语言 */
+function readTarget(s){
+  if(cfg.mode==="talk"){
+    if(s.lang===cfg.my) return cfg.readMe?cfg.other:null;     // 我说中文 → 读日语给对方
+    return cfg.readThem?cfg.my:null;                          // 对方说日语 → 读中文给我
+  }
+  if(s.lang===cfg.my) return null;
+  return cfg.readListen?cfg.my:null;                          // 收听：读中文
+}
+var SENT_SPLIT=/[。．！？!?…]+["」』）)]?|[.](?=\s|$)/g;
 function checkSpeak(){
-  if(!running||!cfg.tts||cfg.mode!=="talk") return;
+  if(!running) return;
   var now=Date.now(), n=segs.length;
-  for(var i=Math.max(0,n-3);i<n;i++){
+  for(var i=Math.max(0,n-4);i<n;i++){
     var s=segs[i];
-    if(s.spoken||!s.tr||s.lang!==cfg.my) continue;
-    var last=(i===n-1), settled=now-s.trAt;
-    if(last&&nf.tr) continue;
-    if((s.ended||!last)&&settled>500 || settled>1800){ s.spoken=true; say(s.tr.trim(),cfg.other) }
+    if(!s.tr) continue;
+    var lang=readTarget(s); if(!lang) continue;
+    var said=s.said||0, rest=s.tr.slice(said);
+    if(!rest.trim()) continue;
+    var last=(i===n-1), settled=now-s.trAt, cutAt=-1, m;
+    SENT_SPLIT.lastIndex=0;
+    while((m=SENT_SPLIT.exec(rest))) cutAt=m.index+m[0].length;   // 已经完整的句子，马上读
+    if(cutAt>0&&settled>150){ say(rest.slice(0,cutAt),lang); s.said=said+cutAt; continue }
+    var finished=(s.ended||!last)&&!(last&&nf.tr);
+    if(finished&&settled>250 || settled>1500&&rest.length>=12 || settled>2500){ say(rest,lang); s.said=s.tr.length }
   }
 }
 function unlockTts(){
@@ -508,9 +544,11 @@ function buildConfig(withKey){
   if(cfg.mode==="talk"){
     c.language_hints=[cfg.my,cfg.other];
     c.translation={type:"two_way",language_a:cfg.my,language_b:cfg.other};
+    c.max_endpoint_delay_ms=900;
   }else{
     c.language_hints=[cfg.other];
     c.translation={type:"one_way",target_language:cfg.my};
+    c.max_endpoint_delay_ms=1200;
   }
   if(cfg.spk) c.enable_speaker_diarization=true;
   var terms=(cfg.terms||"").split(/[,，、\n]/).map(function(x){return x.trim()}).filter(Boolean);
@@ -600,7 +638,12 @@ function getStream(){
     });
   }
   var talk=cfg.mode==="talk";
-  return navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:talk,noiseSuppression:talk,autoGainControl:true}});
+  var c={channelCount:1,echoCancellation:talk,noiseSuppression:talk,autoGainControl:true};
+  if(cfg.micId) c.deviceId={exact:cfg.micId};
+  return navigator.mediaDevices.getUserMedia({audio:c}).catch(function(e){
+    if(cfg.micId&&e&&(e.name==="OverconstrainedError"||e.name==="NotFoundError")){ delete c.deviceId; return navigator.mediaDevices.getUserMedia({audio:c}) }
+    throw e;
+  });
 }
 function withTimeout(p,ms,what){
   return new Promise(function(res,rej){
@@ -770,10 +813,30 @@ for(var ti=0;ti<tabs.length;ti++) tabs[ti].onclick=function(){
 };
 $("btnFsUp").onclick=function(){cfg.fs=Math.min(48,cfg.fs+2);save("fs");applyCfg()};
 $("btnFsDown").onclick=function(){cfg.fs=Math.max(14,cfg.fs-2);save("fs");applyCfg()};
+function readLabel(){
+  if(cfg.mode==="listen") return cfg.readListen?{on:true,t:"🔊"+LANGS[cfg.my].slice(0,1)}:{on:false,t:"🔈"};
+  if(cfg.readMe&&cfg.readThem) return {on:true,t:"🔊双"};
+  if(cfg.readMe) return {on:true,t:"🔊"+LANGS[cfg.other].slice(0,1)};
+  if(cfg.readThem) return {on:true,t:"🔊"+LANGS[cfg.my].slice(0,1)};
+  return {on:false,t:"🔈"};
+}
 $("btnTts").onclick=function(){
-  cfg.tts=!cfg.tts; save("tts"); applyCfg(); $("swTts").checked=cfg.tts;
-  if(cfg.tts){ unlockTts(); unlockPlayer() }
-  toast(cfg.tts?"已开启：我说"+LANGS[cfg.my]+"后，自动用"+LANGS[cfg.other]+"读出来。":"已关闭自动朗读。",true,2500);
+  unlockTts(); unlockPlayer();
+  var msg;
+  if(cfg.mode==="listen"){
+    cfg.readListen=!cfg.readListen; save("readListen");
+    msg=cfg.readListen?"已开启：边听边用"+LANGS[cfg.my]+"读出来。"+(cfg.headset?"":"建议戴耳机并打开 🎧，否则读的时候会暂停收听。"):"已关闭朗读。";
+  }else{ // 不读 → 读日语(给对方) → 读中文(给我) → 双向 → 不读
+    var st=(cfg.readMe?1:0)+(cfg.readThem?2:0), nx={0:1,1:2,2:3,3:0}[st];
+    cfg.readMe=!!(nx&1); cfg.readThem=!!(nx&2); save("readMe"); save("readThem");
+    msg=["已关闭朗读。","我说"+LANGS[cfg.my]+" → 用"+LANGS[cfg.other]+"读给对方听。","对方说"+LANGS[cfg.other]+" → 用"+LANGS[cfg.my]+"读给我听（适合戴耳机）。","双向都读。"][nx];
+  }
+  applyCfg(); toast(msg,true,3000);
+};
+$("btnHs").onclick=function(){
+  cfg.headset=!cfg.headset; save("headset"); applyCfg();
+  toast(cfg.headset?"耳机模式：朗读时不暂停收听，可以边听边读。":"外放模式：朗读时会暂停收听，避免把读出来的声音又翻译一遍。",true,3500);
+  if(running){ stop(); setTimeout(start,300) }
 };
 var clearArmed=0;
 $("btnClear").onclick=function(){
@@ -784,9 +847,20 @@ $("btnClear").onclick=function(){
 function fillSel(sel,val){
   sel.innerHTML=""; for(var k in LANGS){ var o=document.createElement("option"); o.value=k; o.textContent=LANGS[k]; sel.appendChild(o) } sel.value=val;
 }
+function fillMics(){
+  var sel=$("selMic"); sel.innerHTML='<option value="">默认</option>';
+  if(!navigator.mediaDevices||!navigator.mediaDevices.enumerateDevices){ return }
+  navigator.mediaDevices.enumerateDevices().then(function(ds){
+    ds.filter(function(d){return d.kind==="audioinput"&&d.deviceId&&d.deviceId!=="default"}).forEach(function(d,i){
+      var o=document.createElement("option"); o.value=d.deviceId; o.textContent=d.label||("麦克风 "+(i+1)); sel.appendChild(o);
+    });
+    sel.value=cfg.micId||""; if(sel.value!==(cfg.micId||"")) sel.value="";
+  }).catch(function(){});
+}
 function openSheet(){
   $("inKey").value=cfg.key; fillSel($("selMy"),cfg.my); fillSel($("selOther"),cfg.other);
-  $("swSrc").checked=cfg.showSrc; $("swTts").checked=cfg.tts; $("swSpk").checked=cfg.spk; $("swWake").checked=cfg.wake;
+  $("swSrc").checked=cfg.showSrc; $("swReadMe").checked=cfg.readMe; $("swReadThem").checked=cfg.readThem; $("swReadListen").checked=cfg.readListen; $("swHs").checked=cfg.headset;
+  $("selRate").value=String(cfg.rate||1); fillMics(); $("swSpk").checked=cfg.spk; $("swWake").checked=cfg.wake;
   $("inTerms").value=cfg.terms; $("inModel").value=cfg.model; $("selSrc").value=cfg.src;
   $("selVoiceSrc").value=cfg.voiceSrc; $("swDiag").checked=cfg.diag;
   var sv=$("selVoice"); sv.innerHTML=""; VOICES.forEach(function(v){ var o=document.createElement("option"); o.value=v; o.textContent=v; sv.appendChild(o) }); sv.value=cfg.voice;
@@ -795,17 +869,18 @@ function openSheet(){
   $("sheetBg").style.display="block"; $("sheet").classList.add("open");
 }
 function closeSheet(){
-  var before=JSON.stringify([cfg.key,cfg.my,cfg.other,cfg.spk,cfg.terms,cfg.model,cfg.src]);
+  var before=JSON.stringify([cfg.key,cfg.my,cfg.other,cfg.spk,cfg.terms,cfg.model,cfg.src,cfg.headset,cfg.micId]);
   cfg.key=$("inKey").value.trim(); cfg.my=$("selMy").value; cfg.other=$("selOther").value;
   if(cfg.my===cfg.other){ cfg.other=(cfg.my==="ja")?"zh":"ja"; toast("两种语言不能相同，已自动调整。",true,3000) }
-  cfg.showSrc=$("swSrc").checked; cfg.tts=$("swTts").checked; cfg.spk=$("swSpk").checked; cfg.wake=$("swWake").checked;
+  cfg.showSrc=$("swSrc").checked; cfg.readMe=$("swReadMe").checked; cfg.readThem=$("swReadThem").checked; cfg.readListen=$("swReadListen").checked; cfg.headset=$("swHs").checked;
+  cfg.rate=parseFloat($("selRate").value)||1; cfg.micId=$("selMic").value||""; cfg.spk=$("swSpk").checked; cfg.wake=$("swWake").checked;
   cfg.terms=$("inTerms").value.trim(); cfg.model=$("inModel").value.trim()||"stt-rt-v6"; cfg.src=$("selSrc").value;
   cfg.voiceSrc=$("selVoiceSrc").value; cfg.voice=$("selVoice").value||"Emma"; cfg.diag=$("swDiag").checked;
-  ["key","my","other","showSrc","tts","spk","wake","terms","model","voiceSrc","voice","diag"].forEach(save); diag();
+  ["key","my","other","showSrc","tts","spk","wake","terms","model","voiceSrc","voice","diag","readMe","readThem","readListen","headset","rate","micId"].forEach(save); diag();
   $("sheet").classList.remove("open"); $("sheetBg").style.display="none";
   applyCfg(); renderEmpty();
   for(var i=0;i<segs.length;i++) paintSeg(segs[i],"","");
-  var after=JSON.stringify([cfg.key,cfg.my,cfg.other,cfg.spk,cfg.terms,cfg.model,cfg.src]);
+  var after=JSON.stringify([cfg.key,cfg.my,cfg.other,cfg.spk,cfg.terms,cfg.model,cfg.src,cfg.headset,cfg.micId]);
   if(running&&before!==after){ stop(); setTimeout(start,300) }
 }
 $("btnResume").onclick=function(){ // 用户点击 = 系统允许重新打开麦克风
