@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>语言0障碍</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="语言0障碍">
+<meta name="theme-color" content="#0d1014">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<style>
+:root{
+  --bg:#0d1014; --panel:#161a21; --panel2:#1e242d; --line:#2a313c;
+  --text:#f3f1ea; --dim:#8f98a6; --accent:#ffb347; --accent-ink:#1b1204;
+  --me:#2b6f5e; --me-ink:#e9fff8; --danger:#ff6b5e; --ok:#58d39b;
+  --fs:22px;
+  --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
+  overscroll-behavior:none}
+body{display:flex;flex-direction:column;height:100dvh;padding-top:var(--sat)}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+header{display:flex;align-items:center;gap:10px;padding:10px 14px 8px}
+.brand{font-weight:800;letter-spacing:.02em;font-size:17px}
+.brand b{color:var(--accent)}
+.status{margin-left:auto;display:flex;align-items:center;gap:6px;color:var(--dim);font-size:13px;font-variant-numeric:tabular-nums}
+.dot{width:8px;height:8px;border-radius:50%;background:#4a5261}
+.dot.on{background:var(--ok);box-shadow:0 0 0 4px rgba(88,211,155,.18)}
+.dot.wait{background:var(--accent);animation:blink 1s infinite}
+.dot.err{background:var(--danger)}
+@keyframes blink{50%{opacity:.3}}
+.icon-btn{width:38px;height:38px;border-radius:12px;background:var(--panel);display:grid;place-items:center;font-size:18px}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:0 14px 8px;padding:4px;background:var(--panel);border-radius:14px}
+.tab{padding:9px 6px;border-radius:10px;font-weight:700;font-size:15px;color:var(--dim)}
+.tab small{display:block;font-weight:500;font-size:11px;opacity:.8;margin-top:1px}
+.tab.sel{background:var(--accent);color:var(--accent-ink)}
+main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px 14px 16px;scroll-behavior:smooth}
+.seg{margin:0 0 14px;max-width:100%}
+.seg .tr{font-size:var(--fs);line-height:1.45;font-weight:650;word-break:break-word}
+.seg .src{font-size:calc(var(--fs)*.62);line-height:1.5;color:var(--dim);margin-top:3px;word-break:break-word}
+.seg .nf{opacity:.55}
+.seg .who{font-size:11px;color:var(--dim);margin-bottom:2px;letter-spacing:.04em}
+body.hide-src .seg.has-tr .src{display:none}
+/* 对话模式气泡 */
+body.mode-talk .seg{background:var(--panel);border-radius:18px 18px 18px 6px;padding:11px 14px;width:fit-content;max-width:92%}
+body.mode-talk .seg.me{margin-left:auto;background:var(--me);color:var(--me-ink);border-radius:18px 18px 6px 18px}
+body.mode-talk .seg.me .src,body.mode-talk .seg.me .who{color:rgba(233,255,248,.7)}
+body.mode-listen .seg{border-left:3px solid var(--line);padding-left:11px}
+body.mode-listen .seg:last-child{border-left-color:var(--accent)}
+.empty{color:var(--dim);font-size:15px;line-height:1.7;padding:18px 4px}
+.empty h2{color:var(--text);font-size:20px;margin:0 0 8px}
+.empty ol{padding-left:20px;margin:8px 0}
+.empty a{color:var(--accent)}
+.empty .cta{display:inline-block;margin-top:10px;padding:11px 18px;border-radius:12px;background:var(--accent);color:var(--accent-ink);font-weight:800}
+.toast{position:fixed;left:14px;right:14px;bottom:calc(150px + var(--sab));background:#3a1512;color:#ffd9d4;border:1px solid #6b2a24;
+  padding:11px 14px;border-radius:12px;font-size:14px;line-height:1.5;display:none;z-index:30}
+.toast.info{background:var(--panel2);color:var(--text);border-color:var(--line)}
+footer{padding:8px 14px calc(10px + var(--sab));background:linear-gradient(180deg,transparent,var(--bg) 22%);display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px}
+.side{display:flex;gap:8px}
+.side.r{justify-content:flex-end}
+.chip{min-width:44px;height:44px;padding:0 12px;border-radius:14px;background:var(--panel);font-size:14px;font-weight:700;color:var(--text);display:grid;place-items:center}
+.chip.on{background:var(--accent);color:var(--accent-ink)}
+.go{--lv:0;position:relative;width:86px;height:86px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-weight:900;font-size:17px;
+  box-shadow:0 0 0 calc(var(--lv)*22px) rgba(255,179,71,.18),0 8px 26px rgba(0,0,0,.45);transition:box-shadow .09s linear,background .2s}
+.go.run{background:var(--danger);color:#fff;box-shadow:0 0 0 calc(var(--lv)*22px) rgba(255,107,94,.22),0 8px 26px rgba(0,0,0,.45)}
+.go small{display:block;font-size:10px;font-weight:700;opacity:.75;margin-top:1px}
+/* 设置面板 */
+.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;z-index:40}
+.sheet{position:fixed;left:0;right:0;bottom:0;max-height:92dvh;overflow-y:auto;background:var(--panel);border-radius:22px 22px 0 0;
+  padding:16px 16px calc(20px + var(--sab));transform:translateY(105%);transition:transform .25s;z-index:41;max-width:640px;margin:0 auto}
+.sheet.open{transform:none}
+.sheet h3{margin:2px 0 12px;font-size:18px;display:flex;align-items:center}
+.sheet h3 button{margin-left:auto;color:var(--accent);font-weight:800;font-size:15px;padding:6px 4px}
+.f{margin-bottom:14px}
+.f label{display:block;font-size:13px;color:var(--dim);margin-bottom:5px}
+.f input[type=text],.f input[type=password],.f select,.f textarea{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--text);
+  border-radius:12px;padding:11px 12px;font:inherit;font-size:16px;outline:none}
+.f textarea{min-height:64px;resize:vertical}
+.f input:focus,.f select:focus,.f textarea:focus{border-color:var(--accent)}
+.f .hint{font-size:12px;color:var(--dim);margin-top:5px;line-height:1.5}
+.f .hint a{color:var(--accent)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sw{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--line);font-size:15px}
+.sw small{display:block;color:var(--dim);font-size:12px;margin-top:2px}
+.sw input{appearance:none;-webkit-appearance:none;width:50px;height:30px;border-radius:20px;background:#3a4250;position:relative;flex:none;transition:.2s;margin-left:12px}
+.sw input::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:.2s}
+.sw input:checked{background:var(--accent)}
+.sw input:checked::after{left:23px}
+.btn-line{width:100%;padding:12px;border-radius:12px;background:var(--panel2);font-weight:700;margin-top:8px}
+/* 大字展示 */
+.big{position:fixed;inset:0;background:#fff;color:#111;z-index:50;display:none;flex-direction:column;padding:calc(18px + var(--sat)) 22px calc(18px + var(--sab))}
+.big .t{flex:1;display:grid;place-items:center;text-align:center;font-weight:800;line-height:1.35;font-size:clamp(30px,8.5vw,64px);overflow-y:auto;word-break:break-word}
+.big .s{color:#777;font-size:15px;text-align:center;margin-bottom:12px}
+.big .bar{display:flex;gap:10px}
+.big .bar button{flex:1;padding:14px;border-radius:14px;background:#111;color:#fff;font-weight:800;font-size:16px}
+.big .bar button.alt{background:#e9e9e9;color:#111}
+@media (min-width:760px){
+  body{max-width:860px;margin:0 auto}
+  :root{--fs:26px}
+}
+</style>
+</head>
+<body class="mode-talk">
+<header>
+  <div class="brand">语言<b>0</b>障碍</div>
+  <div class="status"><span class="dot" id="dot"></span><span id="stat">未开始</span></div>
+  <button class="icon-btn" id="btnSet" aria-label="设置">⚙</button>
+</header>
+<div class="tabs">
+  <button class="tab sel" data-mode="talk">面对面对话<small id="tabTalkSub">中文 ⇄ 日语</small></button>
+  <button class="tab" data-mode="listen">收听 · 字幕<small id="tabListenSub">电视 / 广播 / 会议 → 中文</small></button>
+</div>
+<main id="list"></main>
+<div class="toast" id="toast"></div>
+<footer>
+  <div class="side">
+    <button class="chip" id="btnFsDown" aria-label="字体缩小">A−</button>
+    <button class="chip" id="btnFsUp" aria-label="字体放大">A+</button>
+  </div>
+  <button class="go" id="btnGo">开始<small id="goSub">点一下</small></button>
+  <div class="side r">
+    <button class="chip" id="btnTts" aria-label="朗读译文">🔈</button>
+    <button class="chip" id="btnClear" aria-label="清空">清空</button>
+  </div>
+</footer>
+
+<div class="sheet-bg" id="sheetBg"></div>
+<div class="sheet" id="sheet">
+  <h3>设置 <button id="btnSetDone">完成</button></h3>
+  <div class="f">
+    <label>Soniox API Key（只保存在这台设备上）</label>
+    <input type="password" id="inKey" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="粘贴你的 API Key">
+    <div class="hint">到 <a href="https://console.soniox.com" target="_blank" rel="noopener">console.soniox.com</a> 注册 → API Keys → 新建一个 Key → 复制粘贴到这里。</div>
+  </div>
+  <div class="row2">
+    <div class="f"><label>我的语言</label><select id="selMy"></select></div>
+    <div class="f"><label>对方 / 节目语言</label><select id="selOther"></select></div>
+  </div>
+  <div class="f" id="srcWrap">
+    <label>声音来源</label>
+    <select id="selSrc">
+      <option value="mic">麦克风（手机 / 电脑）</option>
+      <option value="tab">电脑里播放的声音（网页会议、视频，仅电脑 Chrome / Edge）</option>
+    </select>
+  </div>
+  <label class="sw"><span>显示原文<small>译文下方显示日语原文，顺便练听力</small></span><input type="checkbox" id="swSrc"></label>
+  <label class="sw"><span>自动朗读译文<small>对话模式：我说中文后，用日语读给对方听</small></span><input type="checkbox" id="swTts"></label>
+  <label class="sw"><span>区分说话人<small>会议时标出 说话人1、2、3…</small></span><input type="checkbox" id="swSpk"></label>
+  <label class="sw"><span>屏幕常亮<small>使用中不自动锁屏</small></span><input type="checkbox" id="swWake"></label>
+  <div class="f" style="margin-top:12px">
+    <label>专有词汇（可选，逗号分隔）</label>
+    <textarea id="inTerms" placeholder="例：川原株式会社, 荒川区, 天猫国际"></textarea>
+    <div class="hint">写上公司名、人名、商品名，识别和翻译会更准。</div>
+  </div>
+  <div class="f">
+    <label>模型（一般不用改）</label>
+    <input type="text" id="inModel" autocapitalize="off" spellcheck="false">
+  </div>
+  <button class="btn-line" id="btnCopy">复制全部记录</button>
+</div>
+
+<div class="big" id="big">
+  <div class="s" id="bigS"></div>
+  <div class="t" id="bigT"></div>
+  <div class="bar"><button class="alt" id="bigClose">关闭</button><button id="bigSpeak">🔊 朗读</button></div>
+</div>
+
+<script>
+(function(){
+"use strict";
+var WS_URL="wss://stt-rt.soniox.com/transcribe-websocket";
+var LANGS={zh:"中文",ja:"日语",en:"英语",ko:"韩语",vi:"越南语",th:"泰语"};
+var TTS_LANG={zh:"zh-CN",ja:"ja-JP",en:"en-US",ko:"ko-KR",vi:"vi-VN",th:"th-TH"};
+var $=function(id){return document.getElementById(id)};
+
+/* ---------- 设置 ---------- */
+var store={
+  get:function(k,d){try{var v=localStorage.getItem("y0_"+k);return v===null?d:JSON.parse(v)}catch(e){return d}},
+  set:function(k,v){try{localStorage.setItem("y0_"+k,JSON.stringify(v))}catch(e){}}
+};
+var cfg={
+  key:store.get("key",""), my:store.get("my","zh"), other:store.get("other","ja"),
+  mode:store.get("mode","talk"), fs:store.get("fs",22), showSrc:store.get("showSrc",true),
+  tts:store.get("tts",false), spk:store.get("spk",false), wake:store.get("wake",true),
+  terms:store.get("terms",""), model:store.get("model","stt-rt-v6"), src:"mic"
+};
+function save(k){store.set(k,cfg[k])}
+
+/* ---------- 状态 ---------- */
+var segs=[];            // {id,lang,speaker,src,tr,ended,gotTr,spoken,el}
+var nf={src:"",tr:"",lang:null,speaker:null};
+var running=false, ws=null, wsOpen=false, wsTriedFallback=false, pending=[], reconnects=0, reconnectTimer=null;
+var audioCtx=null, micStream=null, node=null, srcNode=null, sink=null;
+var muted=false, wakeLock=null, startedAt=0, tick=null, segId=0, fatal=false;
+
+/* ---------- 界面基础 ---------- */
+var list=$("list");
+function setStatus(kind,text){
+  $("dot").className="dot"+(kind?" "+kind:"");
+  $("stat").textContent=text;
+}
+var toastTimer=null;
+function toast(msg,info,ms){
+  var t=$("toast"); t.textContent=msg; t.className="toast"+(info?" info":""); t.style.display="block";
+  clearTimeout(toastTimer); toastTimer=setTimeout(function(){t.style.display="none"},ms||6000);
+}
+function applyCfg(){
+  document.documentElement.style.setProperty("--fs",cfg.fs+"px");
+  document.body.classList.toggle("hide-src",!cfg.showSrc);
+  document.body.classList.toggle("mode-talk",cfg.mode==="talk");
+  document.body.classList.toggle("mode-listen",cfg.mode==="listen");
+  var tabs=document.querySelectorAll(".tab");
+  for(var i=0;i<tabs.length;i++) tabs[i].classList.toggle("sel",tabs[i].dataset.mode===cfg.mode);
+  $("tabTalkSub").textContent=LANGS[cfg.my]+" ⇄ "+LANGS[cfg.other];
+  $("tabListenSub").textContent="电视 / 广播 / 会议 → "+LANGS[cfg.my];
+  $("btnTts").classList.toggle("on",cfg.tts);
+  $("btnTts").textContent=cfg.tts?"🔊":"🔈";
+}
+function renderEmpty(){
+  if(segs.length||nf.src||nf.tr) return;
+  var h;
+  if(!cfg.key){
+    h='<div class="empty"><h2>先设置一次，以后点开就能用</h2><ol>'+
+      '<li>打开 <a href="https://console.soniox.com" target="_blank" rel="noopener">console.soniox.com</a> 注册账号</li>'+
+      '<li>在 API Keys 里新建一个 Key 并复制</li>'+
+      '<li>回到这里，点下面的按钮粘贴进去</li></ol>'+
+      '<button class="cta" id="ctaKey">粘贴 API Key</button></div>';
+  }else if(cfg.mode==="talk"){
+    h='<div class="empty"><h2>面对面对话</h2>把手机放在两人中间，点「开始」。<br>对方说'+LANGS[cfg.other]+' → 你看到'+LANGS[cfg.my]+
+      '；你说'+LANGS[cfg.my]+' → 屏幕出现'+LANGS[cfg.other]+'。<br>点任意一条可以<b>放大</b>给对方看，🔈 可以开启自动朗读。</div>';
+  }else{
+    h='<div class="empty"><h2>收听 · 实时字幕</h2>把手机靠近电视、收音机或会议桌，点「开始」。<br>听到的'+LANGS[cfg.other]+
+      '会一边说一边变成'+LANGS[cfg.my]+'字幕，可以连续听很久。<br>A− / A+ 调整字体大小。</div>';
+  }
+  list.innerHTML=h;
+  var c=$("ctaKey"); if(c) c.onclick=openSheet;
+}
+
+/* ---------- 渲染 ---------- */
+function nearBottom(){return list.scrollHeight-list.scrollTop-list.clientHeight<140}
+function mkSeg(lang,speaker){
+  if(!segs.length) list.innerHTML="";
+  var el=document.createElement("div"); el.className="seg";
+  el.innerHTML='<div class="who"></div><div class="tr"><span class="f1"></span><span class="nf"></span></div><div class="src"><span class="f1"></span><span class="nf"></span></div>';
+  var s={id:++segId,lang:lang||null,speaker:speaker||null,src:"",tr:"",ended:false,gotTr:false,spoken:false,el:el,trAt:0};
+  el.onclick=function(){openBig(s)};
+  list.appendChild(el); segs.push(s);
+  if(segs.length>400){var old=segs.shift(); if(old.el.parentNode) old.el.parentNode.removeChild(old.el)}
+  return s;
+}
+function paintSeg(s,nfSrc,nfTr){
+  var el=s.el, isMe=(s.lang&&s.lang===cfg.my);
+  el.classList.toggle("me",cfg.mode==="talk"&&isMe);
+  var hasTr=!!(s.tr||nfTr);
+  el.classList.toggle("has-tr",hasTr);
+  var trF=el.children[1].children[0], trN=el.children[1].children[1], srF=el.children[2].children[0], srN=el.children[2].children[1];
+  if(hasTr){
+    trF.textContent=s.tr.trim(); trN.textContent=nfTr||"";
+    srF.textContent=s.src.trim(); srN.textContent=nfSrc||"";
+    el.children[2].style.display="";
+  }else{ // 还没有译文（或本来就是我的语言、无需翻译）：先把原文显示成大字
+    trF.textContent=s.src.trim(); trN.textContent=nfSrc||"";
+    srF.textContent=""; srN.textContent=""; el.children[2].style.display="none";
+  }
+  var who="";
+  if(cfg.spk&&s.speaker) who="说话人 "+s.speaker;
+  el.children[0].textContent=who; el.children[0].style.display=who?"":"none";
+}
+function render(){
+  var stick=nearBottom();
+  var n=segs.length;
+  if(!n&&(nf.src||nf.tr)){mkSeg(nf.lang,nf.speaker); n=1}
+  for(var i=Math.max(0,n-4);i<n;i++){
+    var last=(i===n-1);
+    paintSeg(segs[i], last?nf.src:"", last?nf.tr:"");
+  }
+  if(stick) list.scrollTop=list.scrollHeight;
+}
+
+/* ---------- 处理 Soniox 返回 ---------- */
+var SENT_END=/[。．！？!?…]\s*$/;
+function needsTr(lang){ return cfg.mode==="talk" ? true : (!lang || lang!==cfg.my) }
+function trTarget(){
+  var n=segs.length; if(!n) return mkSeg(null,null);
+  for(var i=Math.max(0,n-3);i<n;i++){
+    var s=segs[i]; if(s.src&&!s.gotTr&&needsTr(s.lang)) return s;
+  }
+  return segs[n-1];
+}
+function onTokens(tokens){
+  var nSrc="",nTr="",nLang=null,nSpk=null,newSrcStarted=false;
+  for(var i=0;i<tokens.length;i++){
+    var t=tokens[i], txt=t.text||"";
+    if(txt==="<end>"||txt==="<fin>"){ if(segs.length) segs[segs.length-1].ended=true; continue }
+    var isTr=(t.translation_status==="translation");
+    if(t.is_final){
+      if(isTr){
+        var d=trTarget(); d.tr+=txt; d.gotTr=true; d.trAt=Date.now();
+      }else{
+        var cur=segs[segs.length-1], lang=t.language||null, spk=t.speaker||null;
+        var fresh=!cur||cur.ended||(lang&&cur.lang&&lang!==cur.lang)||(spk&&cur.speaker&&spk!==cur.speaker)||
+                  (cur.gotTr&&cur.src.length>=28&&SENT_END.test(cur.src))||(cur.src.length>=160&&SENT_END.test(cur.src));
+        if(fresh&&!txt.trim()) continue;
+        if(fresh) cur=mkSeg(lang,spk);
+        cur.src+=txt; if(!cur.lang&&lang) cur.lang=lang; if(!cur.speaker&&spk) cur.speaker=spk;
+      }
+    }else{
+      if(isTr) nTr+=txt; else { nSrc+=txt; nLang=t.language||nLang; nSpk=t.speaker||nSpk }
+    }
+  }
+  // 最后一段已结束、又来了新的未定稿原文：先开一个新段，避免粘到上一句
+  var lastSeg=segs[segs.length-1];
+  if(nSrc.trim()&&lastSeg&&(lastSeg.ended||(nLang&&lastSeg.lang&&nLang!==lastSeg.lang))) mkSeg(nLang,nSpk);
+  nf.src=nSrc; nf.tr=nTr; nf.lang=nLang; nf.speaker=nSpk;
+  render(); maybeSpeak();
+}
+
+/* ---------- 朗读 ---------- */
+var synth=window.speechSynthesis||null, speakTimer=null;
+function speak(text,lang,done){
+  if(!synth||!text){ if(done) done(); return }
+  try{
+    var u=new SpeechSynthesisUtterance(text); u.lang=TTS_LANG[lang]||lang; u.rate=1;
+    var vs=synth.getVoices()||[];
+    for(var i=0;i<vs.length;i++){ if(vs[i].lang&&vs[i].lang.replace("_","-").toLowerCase().indexOf((TTS_LANG[lang]||lang).toLowerCase().slice(0,2))===0){u.voice=vs[i];break} }
+    muted=true;
+    var fin=function(){ setTimeout(function(){muted=false},250); if(done) done() };
+    u.onend=fin; u.onerror=fin;
+    synth.speak(u);
+    setTimeout(function(){ if(muted&&!synth.speaking) muted=false },15000);
+  }catch(e){ muted=false; if(done) done() }
+}
+function maybeSpeak(){
+  if(!cfg.tts||cfg.mode!=="talk"||!synth) return;
+  clearTimeout(speakTimer);
+  speakTimer=setTimeout(function(){
+    for(var i=Math.max(0,segs.length-3);i<segs.length;i++){
+      var s=segs[i];
+      if(!s.spoken&&s.lang===cfg.my&&s.tr&&(s.ended||i<segs.length-1)&&Date.now()-s.trAt>600){
+        s.spoken=true; speak(s.tr.trim(),cfg.other);
+      }
+    }
+  },750);
+}
+function unlockTts(){ // iOS 需要在点击时先“解锁”一次语音
+  if(!synth) return;
+  try{ var u=new SpeechSynthesisUtterance(" "); u.volume=0; synth.speak(u) }catch(e){}
+}
+
+/* ---------- 大字展示 ---------- */
+var bigSeg=null;
+function openBig(s){
+  var txt=(s.tr||s.src||"").trim(); if(!txt) return;
+  bigSeg=s; $("bigT").textContent=txt; $("bigS").textContent=s.tr?s.src.trim():"";
+  $("big").style.display="flex";
+}
+$("bigClose").onclick=function(){$("big").style.display="none"};
+$("bigSpeak").onclick=function(){
+  if(!bigSeg) return;
+  var hasTr=!!bigSeg.tr, lang;
+  if(hasTr) lang=(bigSeg.lang===cfg.my)?cfg.other:cfg.my; else lang=bigSeg.lang||cfg.other;
+  speak((bigSeg.tr||bigSeg.src).trim(),lang);
+};
+
+/* ---------- WebSocket ---------- */
+function buildConfig(withKey){
+  var c={model:cfg.model||"stt-rt-v6",audio_format:"pcm_s16le",sample_rate:16000,num_channels:1,
+    enable_language_identification:true,enable_endpoint_detection:true};
+  if(withKey) c.api_key=cfg.key;
+  if(cfg.mode==="talk"){
+    c.language_hints=[cfg.my,cfg.other];
+    c.translation={type:"two_way",language_a:cfg.my,language_b:cfg.other};
+  }else{
+    c.language_hints=[cfg.other];
+    c.translation={type:"one_way",target_language:cfg.my};
+  }
+  if(cfg.spk) c.enable_speaker_diarization=true;
+  var terms=(cfg.terms||"").split(/[,，、\n]/).map(function(x){return x.trim()}).filter(Boolean);
+  if(terms.length) c.context={terms:terms};
+  return c;
+}
+function connect(useProto){
+  wsOpen=false;
+  var sock;
+  try{ sock=useProto?new WebSocket(WS_URL,["soniox-api-key",cfg.key]):new WebSocket(WS_URL) }
+  catch(e){ if(useProto){wsTriedFallback=true;return connect(false)} fail("无法连接翻译服务："+e.message); return }
+  sock.binaryType="arraybuffer"; ws=sock;
+  setStatus("wait","连接中…");
+  sock.onopen=function(){
+    if(ws!==sock) return;
+    sock.send(JSON.stringify(buildConfig(!useProto)));
+    wsOpen=true; reconnects=0;
+    for(var i=0;i<pending.length;i++) sock.send(pending[i]);
+    pending=[];
+    setStatus("on","正在听 "+elapsed());
+  };
+  sock.onmessage=function(ev){
+    if(ws!==sock) return;
+    var m; try{m=JSON.parse(ev.data)}catch(e){return}
+    if(m.error_code||m.error_type){ onServerError(m); return }
+    if(m.tokens&&m.tokens.length) onTokens(m.tokens);
+    else if(m.tokens&&(nf.src||nf.tr)){ nf.src="";nf.tr=""; render() }
+  };
+  sock.onerror=function(){};
+  sock.onclose=function(){
+    if(ws!==sock) return;
+    var wasOpen=wsOpen; wsOpen=false; ws=null;
+    if(!running||fatal) return;
+    if(!wasOpen&&useProto&&!wsTriedFallback){ wsTriedFallback=true; connect(false); return }
+    scheduleReconnect();
+  };
+}
+function scheduleReconnect(){
+  if(!running) return;
+  reconnects++;
+  if(reconnects>8){ fail("连接多次失败，请检查网络后重新开始。"); return }
+  // 把未定稿的内容固定下来，避免重连后丢字
+  if(nf.src||nf.tr){ var s=segs[segs.length-1]||mkSeg(nf.lang,nf.speaker); s.src+=nf.src; if(nf.tr){s.tr+=nf.tr;s.gotTr=true} s.ended=true; nf.src="";nf.tr=""; render() }
+  else if(segs.length) segs[segs.length-1].ended=true;
+  setStatus("wait","重新连接…");
+  clearTimeout(reconnectTimer);
+  reconnectTimer=setTimeout(function(){ if(running) connect(!wsTriedFallback) }, Math.min(400*reconnects,3000));
+}
+function onServerError(m){
+  var code=m.error_code, msg=m.error_message||m.error_type||"";
+  if(code===401||/api key|unauthor|invalid.*key/i.test(msg)){ fail("API Key 无效，请在设置里重新粘贴。（"+msg+"）"); openSheet(); return }
+  if(code===402||/balance|payment|quota|credit/i.test(msg)){ fail("Soniox 账户余额不足或额度用完：" + msg); return }
+  if(code===400){ fail("设置有误：" + msg); return }
+  // 其他（超时、达到最长时长、服务繁忙）：自动重连
+  try{ if(ws) ws.close() }catch(e){}
+}
+function fail(msg){ fatal=true; toast(msg,false,9000); stop(); setStatus("err","已停止") }
+
+/* ---------- 音频采集 ---------- */
+var WORKLET='class P extends AudioWorkletProcessor{constructor(){super();this.r=sampleRate/16000;this.a=0;this.s=0;this.c=0;this.o=new Int16Array(1600);this.n=0}'+
+'process(i){var ch=i[0]&&i[0][0];if(!ch)return true;for(var k=0;k<ch.length;k++){this.s+=ch[k];this.c++;this.a+=1;if(this.a>=this.r){this.a-=this.r;var v=this.s/this.c;this.s=0;this.c=0;'+
+'if(v>1)v=1;else if(v<-1)v=-1;this.o[this.n++]=v<0?v*32768:v*32767;if(this.n===1600){this.port.postMessage(this.o.buffer.slice(0));this.n=0}}}return true}}registerProcessor("y0pcm",P);';
+var silent=new ArrayBuffer(3200), lvSmooth=0;
+function onChunk(buf){
+  if(!running) return;
+  var a=new Int16Array(buf), sum=0;
+  for(var i=0;i<a.length;i+=8){var v=a[i]/32768; sum+=v*v}
+  var rms=Math.sqrt(sum/(a.length/8)); lvSmooth=lvSmooth*.6+Math.min(1,rms*9)*.4;
+  $("btnGo").style.setProperty("--lv",muted?0:lvSmooth.toFixed(3));
+  var out=muted?silent:buf;
+  if(ws&&wsOpen&&ws.readyState===1){ ws.send(out) }
+  else if(pending.length<80){ pending.push(out) }
+}
+function getStream(){
+  if(cfg.src==="tab"&&navigator.mediaDevices.getDisplayMedia){
+    return navigator.mediaDevices.getDisplayMedia({video:true,audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}}).then(function(s){
+      if(!s.getAudioTracks().length){ s.getTracks().forEach(function(t){t.stop()}); throw new Error("NO_TAB_AUDIO") }
+      s.getVideoTracks().forEach(function(t){t.stop()});
+      return new MediaStream(s.getAudioTracks());
+    });
+  }
+  var talk=cfg.mode==="talk";
+  return navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:talk,noiseSuppression:talk,autoGainControl:true}});
+}
+function startAudio(){
+  var AC=window.AudioContext||window.webkitAudioContext;
+  audioCtx=new AC({latencyHint:"interactive"});
+  var resume=audioCtx.state==="suspended"?audioCtx.resume():Promise.resolve();
+  return resume.then(getStream).then(function(stream){
+    micStream=stream;
+    stream.getAudioTracks()[0].onended=function(){ if(running){ toast("声音来源已断开。",true); stop() } };
+    srcNode=audioCtx.createMediaStreamSource(stream);
+    sink=audioCtx.createGain(); sink.gain.value=0; sink.connect(audioCtx.destination);
+    var legacy=function(){ // 兜底：本地文件打开或旧浏览器
+      var r=audioCtx.sampleRate/16000,acc=0,s=0,c=0,o=new Int16Array(1600),n=0;
+      node=audioCtx.createScriptProcessor(4096,1,1);
+      node.onaudioprocess=function(e){
+        var ch=e.inputBuffer.getChannelData(0);
+        for(var k=0;k<ch.length;k++){ s+=ch[k];c++;acc+=1; if(acc>=r){acc-=r;var v=s/c;s=0;c=0;if(v>1)v=1;else if(v<-1)v=-1;o[n++]=v<0?v*32768:v*32767;
+          if(n===1600){onChunk(o.buffer.slice(0));n=0}} }
+      };
+      srcNode.connect(node); node.connect(sink);
+    };
+    if(audioCtx.audioWorklet&&window.AudioWorkletNode){
+      var url=URL.createObjectURL(new Blob([WORKLET],{type:"application/javascript"}));
+      return audioCtx.audioWorklet.addModule(url).then(function(){
+        node=new AudioWorkletNode(audioCtx,"y0pcm",{numberOfInputs:1,numberOfOutputs:1,channelCount:1});
+        node.port.onmessage=function(e){onChunk(e.data)};
+        srcNode.connect(node); node.connect(sink);
+      },legacy);
+    }
+    legacy();
+  });
+}
+function stopAudio(){
+  try{ if(node){ node.disconnect(); if(node.port) node.port.onmessage=null; node.onaudioprocess=null } }catch(e){}
+  try{ if(srcNode) srcNode.disconnect() }catch(e){}
+  try{ if(micStream) micStream.getTracks().forEach(function(t){t.onended=null;t.stop()}) }catch(e){}
+  try{ if(audioCtx) audioCtx.close() }catch(e){}
+  node=srcNode=micStream=audioCtx=sink=null;
+}
+
+/* ---------- 开始 / 停止 ---------- */
+function elapsed(){
+  var s=Math.floor((Date.now()-startedAt)/1000), m=Math.floor(s/60); s=s%60;
+  return (m<10?"0":"")+m+":"+(s<10?"0":"")+s;
+}
+function acquireWake(){
+  if(!cfg.wake||!navigator.wakeLock) return;
+  navigator.wakeLock.request("screen").then(function(l){wakeLock=l}).catch(function(){});
+}
+function start(){
+  if(running) return;
+  if(!cfg.key){ openSheet(); toast("请先粘贴 Soniox API Key。",true); return }
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    toast("这个页面需要通过 https 网址打开才能使用麦克风。"); return;
+  }
+  fatal=false; running=true; reconnects=0; wsTriedFallback=false; pending=[]; muted=false;
+  $("btnGo").classList.add("run"); $("btnGo").firstChild.nodeValue="停止"; $("goSub").textContent="正在听";
+  setStatus("wait","准备麦克风…");
+  if(cfg.tts) unlockTts();
+  startAudio().then(function(){
+    if(!running){ stopAudio(); return }
+    startedAt=Date.now();
+    if(segs.length) segs[segs.length-1].ended=true;
+    connect(true); acquireWake();
+    clearInterval(tick);
+    tick=setInterval(function(){ if(running&&wsOpen) setStatus("on","正在听 "+elapsed()) },1000);
+  }).catch(function(e){
+    running=false; stopAudio(); resetGo();
+    var n=e&&e.name, msg="无法使用麦克风："+(e&&e.message||e);
+    if(n==="NotAllowedError"||n==="SecurityError") msg="没有麦克风权限。请在浏览器 / 系统设置里允许此页面使用麦克风，然后再点「开始」。";
+    else if(n==="NotFoundError") msg="没有找到麦克风。";
+    else if(e&&e.message==="NO_TAB_AUDIO") msg="没有拿到声音：共享时请选择「标签页」并勾选「同时共享标签页音频」。";
+    toast(msg,false,9000); setStatus("err","未开始");
+  });
+}
+function resetGo(){
+  var b=$("btnGo"); b.classList.remove("run"); b.firstChild.nodeValue="开始"; $("goSub").textContent="点一下"; b.style.setProperty("--lv",0);
+}
+function stop(){
+  var was=running; running=false;
+  clearInterval(tick); clearTimeout(reconnectTimer);
+  stopAudio();
+  var sock=ws;
+  if(sock){
+    try{ if(sock.readyState===1) sock.send("") }catch(e){}
+    setTimeout(function(){ try{sock.close()}catch(e){} if(ws===sock){ws=null;wsOpen=false} },1200);
+  }
+  if(wakeLock){ try{wakeLock.release()}catch(e){} wakeLock=null }
+  if(synth) try{synth.cancel()}catch(e){}
+  muted=false; resetGo();
+  if(was&&!fatal) setStatus("","已停止");
+  if(nf.src||nf.tr){ var s=segs[segs.length-1]; if(s){ s.src+=nf.src; if(nf.tr){s.tr+=nf.tr;s.gotTr=true} } nf.src="";nf.tr=""; render() }
+}
+$("btnGo").onclick=function(){ running?stop():start() };
+document.addEventListener("visibilitychange",function(){
+  if(document.visibilityState==="visible"&&running){
+    acquireWake();
+    if(audioCtx&&audioCtx.state!=="running") audioCtx.resume().catch(function(){});
+    if(!ws&&!fatal) connect(!wsTriedFallback);
+  }
+});
+
+/* ---------- 按钮与设置 ---------- */
+var tabs=document.querySelectorAll(".tab");
+for(var ti=0;ti<tabs.length;ti++) tabs[ti].onclick=function(){
+  var m=this.dataset.mode; if(m===cfg.mode) return;
+  var was=running; if(was) stop();
+  cfg.mode=m; save("mode"); applyCfg(); renderEmpty();
+  for(var i=0;i<segs.length;i++) paintSeg(segs[i],"","");
+  if(was) setTimeout(start,300);
+};
+$("btnFsUp").onclick=function(){cfg.fs=Math.min(48,cfg.fs+2);save("fs");applyCfg()};
+$("btnFsDown").onclick=function(){cfg.fs=Math.max(14,cfg.fs-2);save("fs");applyCfg()};
+$("btnTts").onclick=function(){
+  cfg.tts=!cfg.tts; save("tts"); applyCfg(); $("swTts").checked=cfg.tts;
+  if(cfg.tts) unlockTts();
+  toast(cfg.tts?"已开启：我说"+LANGS[cfg.my]+"后，自动用"+LANGS[cfg.other]+"读出来。":"已关闭自动朗读。",true,2500);
+};
+var clearArmed=0;
+$("btnClear").onclick=function(){
+  if(!segs.length) return;
+  if(Date.now()-clearArmed>3000){ clearArmed=Date.now(); toast("再点一次「清空」确认删除全部记录。",true,3000); return }
+  clearArmed=0; segs=[]; nf={src:"",tr:"",lang:null,speaker:null}; list.innerHTML=""; renderEmpty(); $("toast").style.display="none";
+};
+function fillSel(sel,val){
+  sel.innerHTML=""; for(var k in LANGS){ var o=document.createElement("option"); o.value=k; o.textContent=LANGS[k]; sel.appendChild(o) } sel.value=val;
+}
+function openSheet(){
+  $("inKey").value=cfg.key; fillSel($("selMy"),cfg.my); fillSel($("selOther"),cfg.other);
+  $("swSrc").checked=cfg.showSrc; $("swTts").checked=cfg.tts; $("swSpk").checked=cfg.spk; $("swWake").checked=cfg.wake;
+  $("inTerms").value=cfg.terms; $("inModel").value=cfg.model; $("selSrc").value=cfg.src;
+  var canTab=!!(navigator.mediaDevices&&navigator.mediaDevices.getDisplayMedia)&&!/iPhone|iPad|Android/i.test(navigator.userAgent);
+  $("srcWrap").style.display=canTab?"":"none";
+  $("sheetBg").style.display="block"; $("sheet").classList.add("open");
+}
+function closeSheet(){
+  var before=JSON.stringify([cfg.key,cfg.my,cfg.other,cfg.spk,cfg.terms,cfg.model,cfg.src]);
+  cfg.key=$("inKey").value.trim(); cfg.my=$("selMy").value; cfg.other=$("selOther").value;
+  if(cfg.my===cfg.other){ cfg.other=(cfg.my==="ja")?"zh":"ja"; toast("两种语言不能相同，已自动调整。",true,3000) }
+  cfg.showSrc=$("swSrc").checked; cfg.tts=$("swTts").checked; cfg.spk=$("swSpk").checked; cfg.wake=$("swWake").checked;
+  cfg.terms=$("inTerms").value.trim(); cfg.model=$("inModel").value.trim()||"stt-rt-v6"; cfg.src=$("selSrc").value;
+  ["key","my","other","showSrc","tts","spk","wake","terms","model"].forEach(save);
+  $("sheet").classList.remove("open"); $("sheetBg").style.display="none";
+  applyCfg(); renderEmpty();
+  for(var i=0;i<segs.length;i++) paintSeg(segs[i],"","");
+  var after=JSON.stringify([cfg.key,cfg.my,cfg.other,cfg.spk,cfg.terms,cfg.model,cfg.src]);
+  if(running&&before!==after){ stop(); setTimeout(start,300) }
+}
+$("btnSet").onclick=openSheet; $("btnSetDone").onclick=closeSheet; $("sheetBg").onclick=closeSheet;
+$("btnCopy").onclick=function(){
+  var out=segs.map(function(s){ return (s.tr?s.tr.trim()+"\n"+s.src.trim():s.src.trim()) }).join("\n\n");
+  if(!out){ toast("还没有记录。",true,2000); return }
+  var ok=function(){toast("已复制全部记录。",true,2000)};
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(out).then(ok,function(){toast("复制失败。")});
+  else{ var ta=document.createElement("textarea"); ta.value=out; document.body.appendChild(ta); ta.select(); try{document.execCommand("copy");ok()}catch(e){} document.body.removeChild(ta) }
+};
+
+/* 测试钩子（开发用） */
+window.__y0={onTokens:onTokens,cfg:cfg,segs:function(){return segs},applyCfg:applyCfg};
+
+applyCfg(); renderEmpty();
+})();
+</script>
+</body>
+</html>
