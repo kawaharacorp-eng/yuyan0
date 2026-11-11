@@ -177,6 +177,7 @@ footer{padding:8px 14px calc(10px + var(--sab));background:linear-gradient(180de
     <div class="f"><label>人声音色</label><select id="selVoice"></select></div>
   </div>
   <div class="f" style="margin-top:-6px"><div class="hint">iPhone 没声音时：检查手机侧面静音开关、调大媒体音量。朗读时会暂停收音，读完自动继续。</div></div>
+  <label class="sw"><span>小声增强<small>自动放大小声音（电视、远处说话），建议开启</small></span><input type="checkbox" id="swBoost"></label>
   <label class="sw"><span>区分说话人<small>会议时标出 说话人1、2、3…</small></span><input type="checkbox" id="swSpk"></label>
   <label class="sw"><span>屏幕常亮<small>使用中不自动锁屏</small></span><input type="checkbox" id="swWake"></label>
   <div class="f" style="margin-top:12px">
@@ -190,7 +191,7 @@ footer{padding:8px 14px calc(10px + var(--sab));background:linear-gradient(180de
   </div>
   <label class="sw"><span>显示诊断信息<small>出问题时打开，截图发给开发者</small></span><input type="checkbox" id="swDiag"></label>
   <button class="btn-line" id="btnCopy">复制全部记录</button>
-  <div class="hint" style="text-align:center;color:var(--dim);font-size:12px;margin-top:12px">版本 1.4</div>
+  <div class="hint" style="text-align:center;color:var(--dim);font-size:12px;margin-top:12px">版本 1.5</div>
 </div>
 
 <div class="big" id="big">
@@ -218,7 +219,7 @@ var cfg={
   mode:store.get("mode","talk"), fs:store.get("fs",22), showSrc:store.get("showSrc",true),
   tts:store.get("tts",false), readMe:store.get("readMe",store.get("tts",false)), readThem:store.get("readThem",false),
   readListen:store.get("readListen",false), headset:store.get("headset",false), rate:store.get("rate",1), micId:store.get("micId",""), spk:store.get("spk",false), wake:store.get("wake",true),
-  terms:store.get("terms",""), model:store.get("model","stt-rt-v6"), src:"mic",
+  boost:store.get("boost",true), terms:store.get("terms",""), model:store.get("model","stt-rt-v6"), src:"mic",
   voiceSrc:store.get("voiceSrc","soniox"), voice:store.get("voice","Emma"), diag:store.get("diag",false)
 };
 function save(k){store.set(k,cfg[k])}
@@ -516,7 +517,7 @@ function diag(){
   var age=lastChunkAt?((Date.now()-lastChunkAt)/1000).toFixed(1)+"s前":"—";
   var wsS=ws?(wsOpen?"已连接":"连接中"):"未连接";
   var msg=lastMsgAt?((Date.now()-lastMsgAt)/1000).toFixed(0)+"s前":"—";
-  $("diag").textContent="麦克风:"+mic+" | 声音数据:"+age+" | 音频:"+(audioCtx?audioCtx.state:"无")+" | 服务器:"+wsS+"(回应"+msg+") | 朗读:"+ttsDiag+(saying?" ▶":"")+(lastErr?" | 最近错误:"+lastErr:"")+(restartingAudio?" | 正在恢复麦克风":"");
+  $("diag").textContent="麦克风:"+mic+" | 声音数据:"+age+" | 音频:"+(audioCtx?audioCtx.state+"@"+Math.round(audioCtx.sampleRate/1000)+"k":"无")+" | 服务器:"+wsS+"(回应"+msg+") | 朗读:"+ttsDiag+(saying?" ▶":"")+(lastErr?" | 最近错误:"+lastErr:"")+(restartingAudio?" | 正在恢复麦克风":"");
   $("diag").style.display="block";
 }
 
@@ -538,7 +539,7 @@ $("bigSpeak").onclick=function(){
 
 /* ---------- WebSocket ---------- */
 function buildConfig(withKey){
-  var c={model:cfg.model||"stt-rt-v6",audio_format:"pcm_s16le",sample_rate:16000,num_channels:1,
+  var c={model:cfg.model||"stt-rt-v6",audio_format:"pcm_s16le",sample_rate:(wsRate=curRateHz()),num_channels:1,
     enable_language_identification:true,enable_endpoint_detection:true};
   if(withKey) c.api_key=cfg.key;
   if(cfg.mode==="talk"){
@@ -611,10 +612,15 @@ function onServerError(m){
 function fail(msg){ fatal=true; toast(msg,false,9000); stop(); setStatus("err","已停止") }
 
 /* ---------- 音频采集 ---------- */
-var WORKLET='class P extends AudioWorkletProcessor{constructor(){super();this.r=sampleRate/16000;this.a=0;this.s=0;this.c=0;this.o=new Int16Array(1600);this.n=0}'+
-'process(i){var ch=i[0]&&i[0][0];if(!ch)return true;for(var k=0;k<ch.length;k++){this.s+=ch[k];this.c++;this.a+=1;if(this.a>=this.r){this.a-=this.r;var v=this.s/this.c;this.s=0;this.c=0;'+
-'if(v>1)v=1;else if(v<-1)v=-1;this.o[this.n++]=v<0?v*32768:v*32767;if(this.n===1600){this.port.postMessage(this.o.buffer.slice(0));this.n=0}}}return true}}registerProcessor("y0pcm",P);';
-var silent=new ArrayBuffer(3200), lvSmooth=0, chunkN=0;
+var WORKLET='class P extends AudioWorkletProcessor{constructor(){super();this.N=Math.round(sampleRate/10);this.o=new Int16Array(this.N);this.n=0;this.env=0.02;this.g=1;this.boost=1;'+
+'this.port.onmessage=e=>{this.boost=e.data.boost}}'+
+'process(i){var ch=i[0]&&i[0][0];if(!ch)return true;for(var k=0;k<ch.length;k++){var x=ch[k],a=x<0?-x:x;'+
+'this.env+= (a>this.env?0.01:0.0002)*(a-this.env);'+
+'if(this.boost>1){var t=0.08/Math.max(this.env,0.0015);if(t>this.boost)t=this.boost;if(t<1)t=1;this.g+= (t<this.g?0.02:0.0005)*(t-this.g);x*=this.g}'+
+'if(x>0.95)x=0.95+0.05*Math.tanh((x-0.95)*20);else if(x<-0.95)x=-0.95-0.05*Math.tanh((-x-0.95)*20);'+
+'this.o[this.n++]=x<0?x*32768:x*32767;if(this.n===this.N){this.port.postMessage(this.o.buffer.slice(0));this.n=0}}return true}}registerProcessor("y0pcm",P);';
+var silent=new ArrayBuffer(3200), lvSmooth=0, chunkN=0, wsRate=16000;
+function curRateHz(){ return audioCtx?Math.round(audioCtx.sampleRate):16000 }
 function onChunk(buf){
   lastChunkAt=Date.now();
   if(!running||micPaused) return;
@@ -638,7 +644,7 @@ function getStream(){
     });
   }
   var talk=cfg.mode==="talk";
-  var c={channelCount:1,echoCancellation:talk,noiseSuppression:talk,autoGainControl:true};
+  var c={channelCount:1,echoCancellation:talk&&!cfg.headset,noiseSuppression:false,autoGainControl:talk};
   if(cfg.micId) c.deviceId={exact:cfg.micId};
   return navigator.mediaDevices.getUserMedia({audio:c}).catch(function(e){
     if(cfg.micId&&e&&(e.name==="OverconstrainedError"||e.name==="NotFoundError")){ delete c.deviceId; return navigator.mediaDevices.getUserMedia({audio:c}) }
@@ -655,18 +661,21 @@ function buildCtx(){ // 新建音频引擎（第一次必须在点击时同步�
   try{ if(node){ node.disconnect(); if(node.port) node.port.onmessage=null; node.onaudioprocess=null } }catch(e){}
   try{ if(audioCtx){ audioCtx.onstatechange=null; audioCtx.close() } }catch(e){}
   node=null;
-  var AC=window.AudioContext||window.webkitAudioContext;
-  var ctx=audioCtx=new AC({latencyHint:"interactive"});
+  var AC=window.AudioContext||window.webkitAudioContext, ctx;
+  try{ ctx=new AC(forceNative?{latencyHint:"interactive"}:{latencyHint:"interactive",sampleRate:16000}) }catch(e){ ctx=new AC({latencyHint:"interactive"}) }
+  audioCtx=ctx; silent=new ArrayBuffer(Math.round(ctx.sampleRate/10)*2);
   ctx.onstatechange=function(){ if(audioCtx===ctx) diag() };
   sink=ctx.createGain(); sink.gain.value=0; sink.connect(ctx.destination);
   var legacy=function(){
-    var r=ctx.sampleRate/16000,acc=0,s=0,c=0,o=new Int16Array(1600),n=0;
+    var N=Math.round(ctx.sampleRate/10),o=new Int16Array(N),n=0,env=0.02,g=1;
     node=ctx.createScriptProcessor(4096,1,1);
     node.onaudioprocess=function(e){
       if(!srcNode) return;
-      var ch=e.inputBuffer.getChannelData(0);
-      for(var k=0;k<ch.length;k++){ s+=ch[k];c++;acc+=1; if(acc>=r){acc-=r;var v=s/c;s=0;c=0;if(v>1)v=1;else if(v<-1)v=-1;o[n++]=v<0?v*32768:v*32767;
-        if(n===1600){onChunk(o.buffer.slice(0));n=0}} }
+      var ch=e.inputBuffer.getChannelData(0), boost=cfg.boost?12:1;
+      for(var k=0;k<ch.length;k++){ var x=ch[k],a=x<0?-x:x; env+=(a>env?0.01:0.0002)*(a-env);
+        if(boost>1){ var t=Math.min(boost,Math.max(1,0.08/Math.max(env,0.0015))); g+=(t<g?0.02:0.0005)*(t-g); x*=g }
+        if(x>1)x=1;else if(x<-1)x=-1; o[n++]=x<0?x*32768:x*32767;
+        if(n===N){onChunk(o.buffer.slice(0));n=0} }
     };
     node.connect(sink);
   };
@@ -677,6 +686,7 @@ function buildCtx(){ // 新建音频引擎（第一次必须在点击时同步�
       return withTimeout(ctx.audioWorklet.addModule(url),3000,"音频模块").then(function(){
         node=new AudioWorkletNode(ctx,"y0pcm",{numberOfInputs:1,numberOfOutputs:1,channelCount:1});
         node.port.onmessage=function(e){onChunk(e.data)};
+        node.port.postMessage({boost:cfg.boost?12:1});
         node.connect(sink);
       },legacy);
     }
@@ -689,7 +699,10 @@ function hookStream(stream){
   micStream=stream;
   var tr=stream.getAudioTracks()[0];
   tr.onended=function(){ if(!running||micPaused||micStream!==stream) return; if(cfg.src==="tab"){ toast("声音来源已断开。",true); stop() } else restartMic() };
-  srcNode=audioCtx.createMediaStreamSource(stream); srcNode.connect(node);
+  try{ srcNode=audioCtx.createMediaStreamSource(stream) }
+  catch(e){ if(!forceNative){ forceNative=true; return buildCtx().then(function(){ return hookStream(stream) }) } throw e }
+  srcNode.connect(node);
+  if(ws&&wsOpen&&wsRate!==curRateHz()){ try{ws.close()}catch(e){} }
   lastChunkAt=Date.now(); ctxBadSince=0;
   if(audioCtx.state!=="running") return withTimeout(audioCtx.resume(),2500,"音频启动").catch(function(){});
 }
@@ -717,10 +730,14 @@ function restartMic(){ // 麦克风被系统打断后自动恢复；恢复不了
   attachMic(true).then(function(){ restartingAudio=false; lastChunkAt=Date.now(); hideResume(); diag() },
     function(e){ restartingAudio=false; showResume("自动恢复失败："+(e&&e.message||e)); diag() });
 }
-var ctxBadSince=0, lastSentAt=0, pumpTimer=null;
-function pump(){ // 麦克风没数据时也给服务器送静音，连接不会因为“没收到声音”而断
+var ctxBadSince=0, lastSentAt=0, pumpTimer=null, forceNative=false, lastKaAt=0;
+function pump(){ // 麦克风暂时没数据时，给服务器发保活消息（不插入假静音，避免切断说话）
   if(!running||!ws||!wsOpen||ws.readyState!==1) return;
-  if(Date.now()-lastSentAt>350){ ws.send(silent); lastSentAt=Date.now() }
+  var now=Date.now();
+  if(now-lastSentAt>1000&&now-lastKaAt>1000){
+    try{ ws.send(micPaused?silent:JSON.stringify({type:"keepalive"})) }catch(e){}
+    lastKaAt=now; if(micPaused) lastSentAt=now;
+  }
 }
 function watchdog(){
   if(!running) return;
@@ -733,7 +750,7 @@ function watchdog(){
   }
   if(now-lastChunkAt<1500&&audioRestarts>0&&now-startedAt>20000) audioRestarts=Math.max(0,audioRestarts-0.05);
   if(!ws&&!reconnectTimer&&!fatal) connect(!wsTriedFallback);
-  else if(ws&&wsOpen&&!micPaused&&now-lastMsgAt>12000&&now-lastLoudAt<4000){ try{ws.close()}catch(e){} }
+  else if(ws&&wsOpen&&!micPaused&&now-lastMsgAt>25000&&now-lastLoudAt<4000){ try{ws.close()}catch(e){} }
   diag();
 }
 function stopAudio(){ // 只关麦克风；音频引擎保留，切换语言/模式后 iPhone 仍能出声
@@ -859,7 +876,7 @@ function fillMics(){
 }
 function openSheet(){
   $("inKey").value=cfg.key; fillSel($("selMy"),cfg.my); fillSel($("selOther"),cfg.other);
-  $("swSrc").checked=cfg.showSrc; $("swReadMe").checked=cfg.readMe; $("swReadThem").checked=cfg.readThem; $("swReadListen").checked=cfg.readListen; $("swHs").checked=cfg.headset;
+  $("swSrc").checked=cfg.showSrc; $("swReadMe").checked=cfg.readMe; $("swReadThem").checked=cfg.readThem; $("swReadListen").checked=cfg.readListen; $("swHs").checked=cfg.headset; $("swBoost").checked=cfg.boost;
   $("selRate").value=String(cfg.rate||1); fillMics(); $("swSpk").checked=cfg.spk; $("swWake").checked=cfg.wake;
   $("inTerms").value=cfg.terms; $("inModel").value=cfg.model; $("selSrc").value=cfg.src;
   $("selVoiceSrc").value=cfg.voiceSrc; $("swDiag").checked=cfg.diag;
@@ -872,11 +889,12 @@ function closeSheet(){
   var before=JSON.stringify([cfg.key,cfg.my,cfg.other,cfg.spk,cfg.terms,cfg.model,cfg.src,cfg.headset,cfg.micId]);
   cfg.key=$("inKey").value.trim(); cfg.my=$("selMy").value; cfg.other=$("selOther").value;
   if(cfg.my===cfg.other){ cfg.other=(cfg.my==="ja")?"zh":"ja"; toast("两种语言不能相同，已自动调整。",true,3000) }
-  cfg.showSrc=$("swSrc").checked; cfg.readMe=$("swReadMe").checked; cfg.readThem=$("swReadThem").checked; cfg.readListen=$("swReadListen").checked; cfg.headset=$("swHs").checked;
+  cfg.showSrc=$("swSrc").checked; cfg.readMe=$("swReadMe").checked; cfg.readThem=$("swReadThem").checked; cfg.readListen=$("swReadListen").checked; cfg.headset=$("swHs").checked; cfg.boost=$("swBoost").checked;
   cfg.rate=parseFloat($("selRate").value)||1; cfg.micId=$("selMic").value||""; cfg.spk=$("swSpk").checked; cfg.wake=$("swWake").checked;
   cfg.terms=$("inTerms").value.trim(); cfg.model=$("inModel").value.trim()||"stt-rt-v6"; cfg.src=$("selSrc").value;
   cfg.voiceSrc=$("selVoiceSrc").value; cfg.voice=$("selVoice").value||"Emma"; cfg.diag=$("swDiag").checked;
-  ["key","my","other","showSrc","tts","spk","wake","terms","model","voiceSrc","voice","diag","readMe","readThem","readListen","headset","rate","micId"].forEach(save); diag();
+  ["key","my","other","showSrc","tts","spk","wake","terms","model","voiceSrc","voice","diag","readMe","readThem","readListen","headset","rate","micId","boost"].forEach(save);
+  if(node&&node.port) node.port.postMessage({boost:cfg.boost?12:1}); diag();
   $("sheet").classList.remove("open"); $("sheetBg").style.display="none";
   applyCfg(); renderEmpty();
   for(var i=0;i<segs.length;i++) paintSeg(segs[i],"","");
