@@ -196,7 +196,7 @@ footer{padding:8px 14px calc(10px + var(--sab));background:linear-gradient(180de
   </div>
   <label class="sw"><span>显示诊断信息<small>出问题时打开，截图发给开发者</small></span><input type="checkbox" id="swDiag"></label>
   <button class="btn-line" id="btnCopy">复制全部记录</button>
-  <div class="hint" style="text-align:center;color:var(--dim);font-size:12px;margin-top:12px">版本 1.8</div>
+  <div class="hint" style="text-align:center;color:var(--dim);font-size:12px;margin-top:12px">版本 1.9</div>
 </div>
 
 <div class="big" id="big">
@@ -209,9 +209,9 @@ footer{padding:8px 14px calc(10px + var(--sab));background:linear-gradient(180de
 (function(){
 "use strict";
 var WS_URL="wss://stt-rt.soniox.com/transcribe-websocket";
-var LANGS={zh:"中文",ja:"日语",en:"英语",ko:"韩语",vi:"越南语",th:"泰语"};
-var QUICK=["ja","en","ko"];
-var TTS_LANG={zh:"zh-CN",ja:"ja-JP",en:"en-US",ko:"ko-KR",vi:"vi-VN",th:"th-TH"};
+var LANGS={zh:"中文",ja:"日语",en:"英语",ko:"韩语",id:"印尼语",vi:"越南语",th:"泰语"};
+var QUICK=["ja","en","ko","id"];
+var TTS_LANG={zh:"zh-CN",ja:"ja-JP",en:"en-US",ko:"ko-KR",id:"id-ID",vi:"vi-VN",th:"th-TH"};
 var $=function(id){return document.getElementById(id)};
 
 /* ---------- 设置 ---------- */
@@ -264,7 +264,8 @@ function applyCfg(){
   if(cfg.mode==="phone"){
     var PH={ja:[["请慢点说","翻訳アプリを使って話しています。少しゆっくり話していただけますか。"],["请再说一遍","すみません、もう一度お願いします。"],["请稍等","少々お待ちください。"]],
             en:[["请慢点说","I'm using a translation app. Could you please speak a little slowly?"],["请再说一遍","Sorry, could you say that again?"],["请稍等","Just a moment, please."]],
-            ko:[["请慢点说","번역 앱을 사용하고 있습니다. 조금 천천히 말씀해 주시겠어요?"],["请再说一遍","죄송하지만 다시 한 번 말씀해 주세요."],["请稍等","잠시만 기다려 주세요."]]}[cfg.other]||[];
+            ko:[["请慢点说","번역 앱을 사용하고 있습니다. 조금 천천히 말씀해 주시겠어요?"],["请再说一遍","죄송하지만 다시 한 번 말씀해 주세요."],["请稍等","잠시만 기다려 주세요."]],
+            id:[["请慢点说","Saya sedang menggunakan aplikasi penerjemah. Bisakah Anda berbicara sedikit lebih pelan?"],["请再说一遍","Maaf, bisa diulangi sekali lagi?"],["请稍等","Mohon tunggu sebentar."]]}[cfg.other]||[];
     var lb=document.createElement("span"); lb.textContent="快捷说"; pt.appendChild(lb);
     PH.forEach(function(p){ var b=document.createElement("button"); b.textContent="🔊 "+p[0];
       b.onclick=function(){ unlockTts(); unlockPlayer(); say(p[1],cfg.other); toast("正在朗读："+p[1],true,2500) }; pt.appendChild(b) });
