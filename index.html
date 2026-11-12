@@ -36,9 +36,9 @@ header{display:flex;align-items:center;gap:10px;padding:10px 14px 8px}
 .dot.err{background:var(--danger)}
 @keyframes blink{50%{opacity:.3}}
 .icon-btn{width:38px;height:38px;border-radius:12px;background:var(--panel);display:grid;place-items:center;font-size:18px}
-.tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:0 14px 8px;padding:4px;background:var(--panel);border-radius:14px}
+.tabs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin:0 14px 8px;padding:4px;background:var(--panel);border-radius:14px}
 .tab{padding:9px 6px;border-radius:10px;font-weight:700;font-size:15px;color:var(--dim)}
-.tab small{display:block;font-weight:500;font-size:11px;opacity:.8;margin-top:1px}
+.tab small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;font-weight:500;font-size:11px;opacity:.8;margin-top:1px}
 .tab.sel{background:var(--accent);color:var(--accent-ink)}
 main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px 14px 16px}
 .seg{margin:0 0 14px;max-width:100%}
@@ -122,10 +122,12 @@ footer{padding:8px 14px calc(10px + var(--sab));background:linear-gradient(180de
 </header>
 <div id="diag" style="display:none;margin:0 14px 6px;padding:6px 10px;border-radius:10px;background:#1a2230;color:#9fb3c8;font-size:11px;line-height:1.5;font-family:ui-monospace,Menlo,monospace"></div>
 <div class="tabs">
-  <button class="tab sel" data-mode="talk">面对面对话<small id="tabTalkSub">中文 ⇄ 日语</small></button>
-  <button class="tab" data-mode="listen">收听 · 字幕<small id="tabListenSub">电视 / 广播 / 会议 → 中文</small></button>
+  <button class="tab sel" data-mode="talk">面对面<small id="tabTalkSub">中文 ⇄ 日语</small></button>
+  <button class="tab" data-mode="phone">打电话<small id="tabPhoneSub">另一台手机免提</small></button>
+  <button class="tab" data-mode="listen">收听<small id="tabListenSub">电视 / 广播 / 会议</small></button>
 </div>
 <div class="langs" id="langs"><span>对方语言</span></div>
+<div class="langs" id="phoneTips" style="display:none"></div>
 <main id="list"></main>
 <div class="toast" id="toast"></div>
 <div id="resume" style="display:none;position:fixed;left:14px;right:14px;bottom:calc(120px + var(--sab));z-index:31">
@@ -167,6 +169,7 @@ footer{padding:8px 14px calc(10px + var(--sab));background:linear-gradient(180de
   <label class="sw"><span>显示原文<small>译文下方显示日语原文，顺便练听力</small></span><input type="checkbox" id="swSrc"></label>
   <label class="sw"><span>对话：读我的话给对方听<small>我说中文 → 外放日语</small></span><input type="checkbox" id="swReadMe"></label>
   <label class="sw"><span>对话：读对方的话给我听<small>对方说日语 → 读中文（适合戴耳机）</small></span><input type="checkbox" id="swReadThem"></label>
+  <label class="sw"><span>打电话：读我的话给对方听<small>我说中文 → 这台手机外放日语</small></span><input type="checkbox" id="swReadPhone"></label>
   <label class="sw"><span>收听：边听边读中文<small>广播、电视、会议同声传译</small></span><input type="checkbox" id="swReadListen"></label>
   <label class="sw"><span>耳机模式 🎧<small>戴耳机时打开：朗读时不暂停收听</small></span><input type="checkbox" id="swHs"></label>
   <div class="row2" style="margin-top:8px">
@@ -193,7 +196,7 @@ footer{padding:8px 14px calc(10px + var(--sab));background:linear-gradient(180de
   </div>
   <label class="sw"><span>显示诊断信息<small>出问题时打开，截图发给开发者</small></span><input type="checkbox" id="swDiag"></label>
   <button class="btn-line" id="btnCopy">复制全部记录</button>
-  <div class="hint" style="text-align:center;color:var(--dim);font-size:12px;margin-top:12px">版本 1.6</div>
+  <div class="hint" style="text-align:center;color:var(--dim);font-size:12px;margin-top:12px">版本 1.7</div>
 </div>
 
 <div class="big" id="big">
@@ -220,7 +223,7 @@ var cfg={
   key:store.get("key",""), my:store.get("my","zh"), other:store.get("other","ja"),
   mode:store.get("mode","talk"), fs:store.get("fs",22), showSrc:store.get("showSrc",true),
   tts:store.get("tts",false), readMe:store.get("readMe",store.get("tts",false)), readThem:store.get("readThem",false),
-  readListen:store.get("readListen",false), headset:store.get("headset",false), rate:store.get("rate",1), micId:store.get("micId",""), spk:store.get("spk",false), wake:store.get("wake",true),
+  readListen:store.get("readListen",false), readPhone:store.get("readPhone",true), headset:store.get("headset",false), rate:store.get("rate",1), micId:store.get("micId",""), spk:store.get("spk",false), wake:store.get("wake",true),
   boost:store.get("boost",true), terms:store.get("terms",""), model:store.get("model","stt-rt-v6"), src:"mic",
   voiceSrc:store.get("voiceSrc","soniox"), voice:store.get("voice","Emma"), diag:store.get("diag",false)
 };
@@ -249,14 +252,23 @@ function toast(msg,info,ms){
 function applyCfg(){
   document.documentElement.style.setProperty("--fs",cfg.fs+"px");
   document.body.classList.toggle("hide-src",!cfg.showSrc);
-  document.body.classList.toggle("mode-talk",cfg.mode==="talk");
+  document.body.classList.toggle("mode-talk",cfg.mode!=="listen");
   document.body.classList.toggle("mode-listen",cfg.mode==="listen");
   var tabs=document.querySelectorAll(".tab");
   for(var i=0;i<tabs.length;i++) tabs[i].classList.toggle("sel",tabs[i].dataset.mode===cfg.mode);
   $("tabTalkSub").textContent=LANGS[cfg.my]+" ⇄ "+LANGS[cfg.other];
-  $("tabListenSub").textContent="电视 / 广播 / 会议 → "+LANGS[cfg.my];
+  $("tabListenSub").textContent="电视 / 广播 / 会议";
   var rd=readLabel(); $("btnTts").classList.toggle("on",rd.on); $("btnTts").textContent=rd.t;
-  $("btnHs").classList.toggle("on",cfg.headset); $("btnHs").textContent="🎧";
+  $("btnHs").classList.toggle("on",cfg.headset); $("btnHs").style.display=cfg.mode==="phone"?"none":""; $("btnHs").textContent="🎧";
+  var pt=$("phoneTips"); pt.style.display=cfg.mode==="phone"?"flex":"none"; pt.innerHTML="";
+  if(cfg.mode==="phone"){
+    var PH={ja:[["请慢点说","翻訳アプリを使って話しています。少しゆっくり話していただけますか。"],["请再说一遍","すみません、もう一度お願いします。"],["请稍等","少々お待ちください。"]],
+            en:[["请慢点说","I'm using a translation app. Could you please speak a little slowly?"],["请再说一遍","Sorry, could you say that again?"],["请稍等","Just a moment, please."]],
+            ko:[["请慢点说","번역 앱을 사용하고 있습니다. 조금 천천히 말씀해 주시겠어요?"],["请再说一遍","죄송하지만 다시 한 번 말씀해 주세요."],["请稍等","잠시만 기다려 주세요."]]}[cfg.other]||[];
+    var lb=document.createElement("span"); lb.textContent="快捷说"; pt.appendChild(lb);
+    PH.forEach(function(p){ var b=document.createElement("button"); b.textContent="🔊 "+p[0];
+      b.onclick=function(){ unlockTts(); unlockPlayer(); say(p[1],cfg.other); toast("正在朗读："+p[1],true,2500) }; pt.appendChild(b) });
+  }
   var box=$("langs"); while(box.children.length>1) box.removeChild(box.lastChild);
   var ql=QUICK.filter(function(k){return k!==cfg.my}); if(ql.indexOf(cfg.other)<0) ql.unshift(cfg.other);
   ql.forEach(function(k){
@@ -279,6 +291,13 @@ function renderEmpty(){
       '<li>在 API Keys 里新建一个 Key 并复制</li>'+
       '<li>回到这里，点下面的按钮粘贴进去</li></ol>'+
       '<button class="cta" id="ctaKey">粘贴 API Key</button></div>';
+  }else if(cfg.mode==="phone"){
+    h='<div class="empty"><h2>打电话翻译</h2><ol>'+
+      '<li>用<b>另一台手机</b>拨打电话，打开<b>免提</b>，音量调大</li>'+
+      '<li>两台手机挨着放（喇叭和麦克风靠近）</li>'+
+      '<li>点「开始」：对方说'+LANGS[cfg.other]+' → 这里显示'+LANGS[cfg.my]+'</li>'+
+      '<li>你说'+LANGS[cfg.my]+' → 这台手机大声读出'+LANGS[cfg.other]+'，对方就能听到</li></ol>'+
+      '小技巧：说短句；等这台手机<b>读完</b>再让对方回答；接通后先点上面的「🔊 请慢点说」，告诉对方你在用翻译。</div>';
   }else if(cfg.mode==="talk"){
     h='<div class="empty"><h2>面对面对话</h2>把手机放在两人中间，点「开始」。<br>对方说'+LANGS[cfg.other]+' → 你看到'+LANGS[cfg.my]+
       '；你说'+LANGS[cfg.my]+' → 屏幕出现'+LANGS[cfg.other]+'。<br>点任意一条可以<b>放大</b>给对方看。<br>🔈 按钮切换朗读：读给对方 / 读给我 / 双向；戴耳机请打开 🎧。</div>';
@@ -304,7 +323,7 @@ function mkSeg(lang,speaker){
 }
 function paintSeg(s,nfSrc,nfTr){
   var el=s.el, isMe=(s.lang&&s.lang===cfg.my);
-  el.classList.toggle("me",cfg.mode==="talk"&&isMe);
+  el.classList.toggle("me",cfg.mode!=="listen"&&isMe);
   var hasTr=!!(s.tr||nfTr);
   el.classList.toggle("has-tr",hasTr);
   var trF=el.children[1].children[0], trN=el.children[1].children[1], srF=el.children[2].children[0], srN=el.children[2].children[1];
@@ -338,7 +357,7 @@ function doRender(){
 
 /* ---------- 处理 Soniox 返回 ---------- */
 var SENT_END=/[。．！？!?…]\s*$/;
-function needsTr(lang){ return cfg.mode==="talk" ? true : (!lang || lang!==cfg.my) }
+function needsTr(lang){ return cfg.mode!=="listen" ? true : (!lang || lang!==cfg.my) }
 function trTarget(){
   var n=segs.length; if(!n) return mkSeg(null,null);
   for(var i=Math.max(0,n-3);i<n;i++){
@@ -434,7 +453,7 @@ function sysSpeak(text,lang){
     }catch(e){ fin() }
   });
 }
-function needPause(){ return !cfg.headset && cfg.src!=="tab" }
+function needPause(){ return cfg.mode==="phone" || (!cfg.headset && cfg.src!=="tab") }
 function pauseMic(){
   if(!running||micPaused||!needPause()) return Promise.resolve();
   micPaused=true; detachMic(); diag();
@@ -499,6 +518,7 @@ function nextSay(){
 }
 /* 什么时候读、读哪种语言 */
 function readTarget(s){
+  if(cfg.mode==="phone") return (s.lang===cfg.my&&cfg.readPhone)?cfg.other:null;
   if(cfg.mode==="talk"){
     if(s.lang===cfg.my) return cfg.readMe?cfg.other:null;     // 我说中文 → 读日语给对方
     return cfg.readThem?cfg.my:null;                          // 对方说日语 → 读中文给我
@@ -569,7 +589,7 @@ function buildConfig(withKey){
   var c={model:cfg.model||"stt-rt-v6",audio_format:"pcm_s16le",sample_rate:(wsRate=curRateHz()),num_channels:1,
     enable_language_identification:true,enable_endpoint_detection:true};
   if(withKey) c.api_key=cfg.key;
-  if(cfg.mode==="talk"){
+  if(cfg.mode!=="listen"){
     c.language_hints=[cfg.my,cfg.other];
     c.translation={type:"two_way",language_a:cfg.my,language_b:cfg.other};
     c.max_endpoint_delay_ms=900;
@@ -670,7 +690,7 @@ function getStream(){
       return new MediaStream(s.getAudioTracks());
     });
   }
-  var talk=cfg.mode==="talk";
+  var talk=cfg.mode!=="listen";
   var c={channelCount:1,echoCancellation:talk&&!cfg.headset,noiseSuppression:false,autoGainControl:talk};
   if(cfg.micId) c.deviceId={exact:cfg.micId};
   return navigator.mediaDevices.getUserMedia({audio:c}).catch(function(e){
@@ -858,6 +878,7 @@ for(var ti=0;ti<tabs.length;ti++) tabs[ti].onclick=function(){
 $("btnFsUp").onclick=function(){cfg.fs=Math.min(48,cfg.fs+2);save("fs");applyCfg()};
 $("btnFsDown").onclick=function(){cfg.fs=Math.max(14,cfg.fs-2);save("fs");applyCfg()};
 function readLabel(){
+  if(cfg.mode==="phone") return cfg.readPhone?{on:true,t:"🔊"+LANGS[cfg.other].slice(0,1)}:{on:false,t:"🔈"};
   if(cfg.mode==="listen") return cfg.readListen?{on:true,t:"🔊"+LANGS[cfg.my].slice(0,1)}:{on:false,t:"🔈"};
   if(cfg.readMe&&cfg.readThem) return {on:true,t:"🔊双"};
   if(cfg.readMe) return {on:true,t:"🔊"+LANGS[cfg.other].slice(0,1)};
@@ -867,7 +888,10 @@ function readLabel(){
 $("btnTts").onclick=function(){
   unlockTts(); unlockPlayer();
   var msg;
-  if(cfg.mode==="listen"){
+  if(cfg.mode==="phone"){
+    cfg.readPhone=!cfg.readPhone; save("readPhone");
+    msg=cfg.readPhone?"我说"+LANGS[cfg.my]+" → 这台手机大声读"+LANGS[cfg.other]+"，让电话那头听到。":"已关闭朗读（只看字幕）。";
+  }else if(cfg.mode==="listen"){
     cfg.readListen=!cfg.readListen; save("readListen");
     msg=cfg.readListen?"已开启：边听边用"+LANGS[cfg.my]+"读出来。"+(cfg.headset?"":"建议戴耳机并打开 🎧，否则读的时候会暂停收听。"):"已关闭朗读。";
   }else{ // 不读 → 读日语(给对方) → 读中文(给我) → 双向 → 不读
@@ -903,7 +927,7 @@ function fillMics(){
 }
 function openSheet(){
   $("inKey").value=cfg.key; fillSel($("selMy"),cfg.my); fillSel($("selOther"),cfg.other);
-  $("swSrc").checked=cfg.showSrc; $("swReadMe").checked=cfg.readMe; $("swReadThem").checked=cfg.readThem; $("swReadListen").checked=cfg.readListen; $("swHs").checked=cfg.headset; $("swBoost").checked=cfg.boost;
+  $("swSrc").checked=cfg.showSrc; $("swReadMe").checked=cfg.readMe; $("swReadThem").checked=cfg.readThem; $("swReadListen").checked=cfg.readListen; $("swReadPhone").checked=cfg.readPhone; $("swHs").checked=cfg.headset; $("swBoost").checked=cfg.boost;
   $("selRate").value=String(cfg.rate||1); fillMics(); $("swSpk").checked=cfg.spk; $("swWake").checked=cfg.wake;
   $("inTerms").value=cfg.terms; $("inModel").value=cfg.model; $("selSrc").value=cfg.src;
   $("selVoiceSrc").value=cfg.voiceSrc; $("swDiag").checked=cfg.diag;
@@ -916,11 +940,11 @@ function closeSheet(){
   var before=JSON.stringify([cfg.key,cfg.my,cfg.other,cfg.spk,cfg.terms,cfg.model,cfg.src,cfg.headset,cfg.micId]);
   cfg.key=$("inKey").value.trim(); cfg.my=$("selMy").value; cfg.other=$("selOther").value;
   if(cfg.my===cfg.other){ cfg.other=(cfg.my==="ja")?"zh":"ja"; toast("两种语言不能相同，已自动调整。",true,3000) }
-  cfg.showSrc=$("swSrc").checked; cfg.readMe=$("swReadMe").checked; cfg.readThem=$("swReadThem").checked; cfg.readListen=$("swReadListen").checked; cfg.headset=$("swHs").checked; cfg.boost=$("swBoost").checked;
+  cfg.showSrc=$("swSrc").checked; cfg.readMe=$("swReadMe").checked; cfg.readThem=$("swReadThem").checked; cfg.readListen=$("swReadListen").checked; cfg.readPhone=$("swReadPhone").checked; cfg.headset=$("swHs").checked; cfg.boost=$("swBoost").checked;
   cfg.rate=parseFloat($("selRate").value)||1; cfg.micId=$("selMic").value||""; cfg.spk=$("swSpk").checked; cfg.wake=$("swWake").checked;
   cfg.terms=$("inTerms").value.trim(); cfg.model=$("inModel").value.trim()||"stt-rt-v6"; cfg.src=$("selSrc").value;
   cfg.voiceSrc=$("selVoiceSrc").value; cfg.voice=$("selVoice").value||"Emma"; cfg.diag=$("swDiag").checked;
-  ["key","my","other","showSrc","tts","spk","wake","terms","model","voiceSrc","voice","diag","readMe","readThem","readListen","headset","rate","micId","boost"].forEach(save);
+  ["key","my","other","showSrc","tts","spk","wake","terms","model","voiceSrc","voice","diag","readMe","readThem","readListen","readPhone","headset","rate","micId","boost"].forEach(save);
   if(node&&node.port) node.port.postMessage({boost:cfg.boost?6:1}); diag();
   $("sheet").classList.remove("open"); $("sheetBg").style.display="none";
   applyCfg(); renderEmpty();
