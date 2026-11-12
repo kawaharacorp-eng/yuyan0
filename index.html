@@ -196,7 +196,7 @@ footer{padding:8px 14px calc(10px + var(--sab));background:linear-gradient(180de
   </div>
   <label class="sw"><span>显示诊断信息<small>出问题时打开，截图发给开发者</small></span><input type="checkbox" id="swDiag"></label>
   <button class="btn-line" id="btnCopy">复制全部记录</button>
-  <div class="hint" style="text-align:center;color:var(--dim);font-size:12px;margin-top:12px">版本 1.9</div>
+  <div class="hint" style="text-align:center;color:var(--dim);font-size:12px;margin-top:12px">版本 2.0</div>
 </div>
 
 <div class="big" id="big">
@@ -973,6 +973,18 @@ $("btnCopy").onclick=function(){
 window.__y0={ctx:function(){return audioCtx},mic:function(){return micStream},err:function(m){onServerError(m)},onTokens:onTokens,cfg:cfg,segs:function(){return segs},applyCfg:applyCfg};
 
 applyCfg(); renderEmpty(); diag();
+/* 自动更新：打开或切回 App 时检查新版本，有就自动刷新（绕过手机缓存） */
+var MY_VER=(document.body.innerHTML.match(/版本 (\d+\.\d+)/)||[])[1]||"", lastCheck=0;
+function checkUpdate(){
+  if(running||Date.now()-lastCheck<30000||!window.fetch||location.protocol.indexOf("http")!==0) return;
+  lastCheck=Date.now();
+  fetch("./index.html?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.text()}).then(function(t){
+    var v=(t.match(/版本 (\d+\.\d+)/)||[])[1];
+    if(v&&MY_VER&&v!==MY_VER){ toast("发现新版本 "+v+"，正在更新…",true,2000); setTimeout(function(){ location.replace("./index.html?v="+v) },800) }
+  }).catch(function(){});
+}
+checkUpdate();
+document.addEventListener("visibilitychange",function(){ if(document.visibilityState==="visible") checkUpdate() });
 })();
 </script>
 </body>
