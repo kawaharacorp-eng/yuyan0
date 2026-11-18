@@ -196,7 +196,7 @@ footer{padding:8px 14px calc(10px + var(--sab));background:linear-gradient(180de
   </div>
   <label class="sw"><span>显示诊断信息<small>出问题时打开，截图发给开发者</small></span><input type="checkbox" id="swDiag"></label>
   <button class="btn-line" id="btnCopy">复制全部记录</button>
-  <div class="hint" style="text-align:center;color:var(--dim);font-size:12px;margin-top:12px">版本 2.0</div>
+  <div class="hint" style="text-align:center;color:var(--dim);font-size:12px;margin-top:12px">版本 2.1</div>
 </div>
 
 <div class="big" id="big">
@@ -423,7 +423,7 @@ function unlockPlayer(){ // 必须在手指点击时调用一次，之后 iPhone
   try{
     if(!player){ player=new Audio(); player.setAttribute("playsinline",""); player.preload="auto" }
     player.onended=null; player.onerror=null; player.onloadedmetadata=null;
-    player.src=silentWavUrl(); var p=player.play(); if(p&&p.catch) p.catch(function(){});
+    player.muted=true; player.src=silentWavUrl(); var p=player.play(); if(p&&p.catch) p.catch(function(){});
   }catch(e){}
 }
 function playBuf(buf,rate){
@@ -434,9 +434,24 @@ function playBuf(buf,rate){
     player.onended=fin; player.onerror=function(){ ttsDiag="播放失败"; fin() };
     player.onloadedmetadata=function(){ clearTimeout(guard); guard=setTimeout(fin,(isFinite(player.duration)?player.duration*1000/(rate||1):8000)+1500) };
     guard=setTimeout(fin,20000);
-    player.src=url; player.volume=1;
+    player.src=url; player.muted=false; player.volume=1;
     try{ player.preservesPitch=true; player.webkitPreservesPitch=true; player.defaultPlaybackRate=rate||1; player.playbackRate=rate||1 }catch(e){}
     var p=player.play(); if(p&&p.catch) p.catch(function(e){ ttsDiag="播放被拦截:"+(e&&e.name); fin() });
+  });
+}
+function playViaCtx(buf,rate){
+  var ctx=audioCtx;
+  return new Promise(function(res,rej){
+    try{ var p=ctx.decodeAudioData(buf.slice(0),function(ab){ go(ab) },rej); if(p&&p.then) p.then(go,rej) }catch(e){ rej(e) }
+    var started=false;
+    function go(ab){
+      if(started) return; started=true;
+      var src=ctx.createBufferSource(), g=ctx.createGain(); src.buffer=ab; src.playbackRate.value=rate||1; g.gain.value=1;
+      src.connect(g); g.connect(ctx.destination);
+      var done=false, fin=function(){ if(done) return; done=true; try{src.disconnect();g.disconnect()}catch(e){} res() };
+      src.onended=fin; setTimeout(fin,ab.duration*1000/(rate||1)+1500);
+      try{ src.start() }catch(e){ fin() }
+    }
   });
 }
 function sysSpeak(text,lang){
@@ -513,7 +528,10 @@ function nextSay(){
   var sys=function(){ return pauseMic().then(function(){ return sysSpeak(it.text,it.lang) }) };
   var run=it.p?it.p.then(function(buf){
       ttsDiag="人声(生成"+(it.gen||0).toFixed(1)+"s"+(sayQ.length?"，排队"+sayQ.length:"")+")"; diag();
-      return pauseMic().then(function(){ return playBuf(buf,curRate()) });
+      var r=curRate();
+      if(running&&!needPause()&&audioCtx&&audioCtx.state==="running"&&micStream)  // 边录边读：不换播放器
+        return playViaCtx(buf,Math.min(r,1.3)).catch(function(){ return playBuf(buf,r) });
+      return pauseMic().then(function(){ return playBuf(buf,r) });
     },function(e){ ttsDiag="人声失败→系统声音 ("+(e&&e.message||e)+")"; diag(); return sys() })
     :sys();
   run.then(done,done);
@@ -778,7 +796,7 @@ function restartMic(){ // 麦克风被系统打断后自动恢复；恢复不了
   attachMic(true).then(function(){ restartingAudio=false; lastChunkAt=Date.now(); hideResume(); diag() },
     function(e){ restartingAudio=false; showResume("自动恢复失败："+(e&&e.message||e)); diag() });
 }
-var ctxBadSince=0, lastSentAt=0, pumpTimer=null, forceNative=false, lastKaAt=0;
+var mutedSince=0, ctxBadSince=0, lastSentAt=0, pumpTimer=null, forceNative=false, lastKaAt=0;
 function pump(){ // 麦克风暂时没数据时，给服务器发保活消息（不插入假静音，避免切断说话）
   if(!running||!ws||!wsOpen||ws.readyState!==1) return;
   var now=Date.now();
@@ -794,7 +812,8 @@ function watchdog(){
   if(audioCtx&&audioCtx.state!=="running"){ if(!ctxBadSince) ctxBadSince=now; audioCtx.resume().catch(function(){}) } else ctxBadSince=0;
   if(!micPaused&&!saying&&!restartingAudio&&document.visibilityState==="visible"){
     var tr=micStream&&micStream.getAudioTracks()[0];
-    if(!tr||tr.readyState==="ended"||now-lastChunkAt>2500||(ctxBadSince&&now-ctxBadSince>2000)) restartMic();
+    if(tr&&tr.muted){ if(!mutedSince) mutedSince=now } else mutedSince=0;
+    if(!tr||tr.readyState==="ended"||now-lastChunkAt>2500||(ctxBadSince&&now-ctxBadSince>2000)||(mutedSince&&now-mutedSince>1500)){ mutedSince=0; restartMic() }
   }
   if(now-lastChunkAt<1500&&audioRestarts>0&&now-startedAt>20000) audioRestarts=Math.max(0,audioRestarts-0.05);
   if(!ws&&!reconnectTimer&&!fatal) connect(!wsTriedFallback);
