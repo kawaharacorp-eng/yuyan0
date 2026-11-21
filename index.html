@@ -36,9 +36,9 @@ header{display:flex;align-items:center;gap:10px;padding:10px 14px 8px}
 .dot.err{background:var(--danger)}
 @keyframes blink{50%{opacity:.3}}
 .icon-btn{width:38px;height:38px;border-radius:12px;background:var(--panel);display:grid;place-items:center;font-size:18px}
-.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;margin:0 14px 8px;padding:4px;background:var(--panel);border-radius:14px}
-.tab{padding:9px 6px;border-radius:10px;font-weight:700;font-size:15px;color:var(--dim)}
-.tab small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;font-weight:500;font-size:11px;opacity:.8;margin-top:1px}
+.tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:2px;margin:0 14px 8px;padding:4px;background:var(--panel);border-radius:14px}
+.tab{padding:8px 2px;border-radius:10px;font-weight:700;font-size:14px;color:var(--dim)}
+.tab small{font-size:10px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;font-weight:500;font-size:11px;opacity:.8;margin-top:1px}
 .tab.sel{background:var(--accent);color:var(--accent-ink)}
 main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px 14px 16px}
 .seg{margin:0 0 14px;max-width:100%}
@@ -58,6 +58,10 @@ body.hide-zh .ai .zh{display:none}
 .report .bar{display:flex;gap:10px;padding-top:10px}
 .report .bar button{flex:1;padding:13px;border-radius:14px;background:var(--panel2);font-weight:800}
 .report .bar button.pri{background:var(--accent);color:var(--accent-ink)}
+.eyeimg{max-width:100%;max-height:42vh;border-radius:12px;display:block}
+.ai .say{font-weight:700;line-height:1.6;font-size:calc(var(--fs)*.8)}
+.ai .detail{margin-top:8px;font-size:calc(var(--fs)*.72);line-height:1.7;white-space:pre-wrap;word-break:break-word}
+.ai .detail rt,.ai .say rt{font-size:.55em;color:var(--accent);font-weight:500}
 .seg .who{font-size:11px;color:var(--dim);margin-bottom:2px;letter-spacing:.04em}
 body.hide-src .seg.has-tr .src{display:none}
 /* 对话模式气泡 */
@@ -138,12 +142,22 @@ footer{padding:8px 14px calc(10px + var(--sab));background:linear-gradient(180de
   <button class="tab" data-mode="phone">打电话<small id="tabPhoneSub">另一台手机免提</small></button>
   <button class="tab" data-mode="listen">收听<small id="tabListenSub">电视 / 广播</small></button>
   <button class="tab" data-mode="coach">陪练<small id="tabCoachSub">AI 老师</small></button>
+  <button class="tab" data-mode="eye">看懂<small>拍照讲解</small></button>
 </div>
 <div class="langs" id="langs"><span>对方语言</span></div>
 <div class="langs" id="phoneTips" style="display:none"></div>
 <div class="langs" id="coachBar" style="display:none"></div>
+<div class="langs" id="eyeBar" style="display:none">
+  <button id="eyeCam" class="sel">📷 拍照</button><button id="eyePick">🖼 相册</button><button id="eyeNew">🆕 新话题</button>
+  <input type="file" id="eyeFileCam" accept="image/*" capture="environment" style="display:none">
+  <input type="file" id="eyeFilePick" accept="image/*" style="display:none">
+</div>
 <main id="list"></main>
 <div class="toast" id="toast"></div>
+<form id="eyeAskBar" style="display:none;gap:8px;padding:6px 14px 0">
+  <input id="eyeInput" type="text" placeholder="打字提问，或点「开始」用说的" style="flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:12px;padding:11px 12px;font:inherit;font-size:16px;outline:none">
+  <button type="submit" class="chip on" style="height:44px">发送</button>
+</form>
 <div id="resume" style="display:none;position:fixed;left:14px;right:14px;bottom:calc(120px + var(--sab));z-index:31">
   <button id="btnResume" style="width:100%;padding:16px;border-radius:16px;background:var(--accent);color:var(--accent-ink);font-weight:900;font-size:17px;box-shadow:0 8px 26px rgba(0,0,0,.5)">
     🎤 点这里继续听<small id="resumeWhy" style="display:block;font-weight:600;font-size:12px;opacity:.75;margin-top:2px"></small></button>
@@ -205,6 +219,8 @@ footer{padding:8px 14px calc(10px + var(--sab));background:linear-gradient(180de
   <div class="f"><label id="lbAiKey">API Key</label>
     <input type="password" id="inAiKey" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="粘贴这家 AI 的 Key">
     <div class="hint" id="aiHint"></div></div>
+  <div class="f"><label>「看懂」用的看图模型</label><input type="text" id="inAiVision" autocapitalize="off" spellcheck="false">
+    <div class="hint">留空 = 用默认值。千问要用视觉模型（如 qwen3-vl-plus）；OpenAI、Claude 一般和上面相同即可。</div></div>
   <div class="f" id="qwenRegWrap"><label>千问 Key 所属地域</label><select id="selQwenReg"><option value="cn">中国（北京）</option><option value="intl">国际（新加坡）</option></select></div>
   <div class="row2">
     <div class="f"><label>纠错方式</label><select id="selFix"><option value="end">说完再纠（练完看报告）</option><option value="instant">边说边纠（每句提示）</option></select></div>
@@ -229,7 +245,7 @@ footer{padding:8px 14px calc(10px + var(--sab));background:linear-gradient(180de
   </div>
   <label class="sw"><span>显示诊断信息<small>出问题时打开，截图发给开发者</small></span><input type="checkbox" id="swDiag"></label>
   <button class="btn-line" id="btnCopy">复制全部记录</button>
-  <div class="hint" style="text-align:center;color:var(--dim);font-size:12px;margin-top:12px">版本 2.3</div>
+  <div class="hint" style="text-align:center;color:var(--dim);font-size:12px;margin-top:12px">版本 2.4</div>
 </div>
 
 <div class="report" id="report">
@@ -263,6 +279,7 @@ var cfg={
   tts:store.get("tts",false), readMe:store.get("readMe",store.get("tts",false)), readThem:store.get("readThem",false),
   readListen:store.get("readListen",false), readPhone:store.get("readPhone",true), headset:store.get("headset",false), rate:store.get("rate",1), micId:store.get("micId",""), spk:store.get("spk",false), wake:store.get("wake",true),
   boost:store.get("boost",true),
+  aiVision:store.get("aiVision",{}), eyeVoice:store.get("eyeVoice",true),
   ai:store.get("ai","openai"), aiKeys:store.get("aiKeys",{}), aiModels:store.get("aiModels",{}), aiUrls:store.get("aiUrls",{}), qwenReg:store.get("qwenReg","cn"),
   fix:store.get("fix","end"), coachRate:store.get("coachRate",1), scene:store.get("scene","free"), sceneCustom:store.get("sceneCustom",""), coachZh:store.get("coachZh",true), coachVoice:store.get("coachVoice",true), terms:store.get("terms",""), model:store.get("model","stt-rt-v6"), src:"mic",
   voiceSrc:store.get("voiceSrc","soniox"), voice:store.get("voice","Emma"), diag:store.get("diag",false)
@@ -303,6 +320,9 @@ function applyCfg(){
   document.body.classList.toggle("hide-zh",!cfg.coachZh);
   $("tabCoachSub").textContent="AI 老师 · "+LANGS[cfg.other];
   renderCoachBar();
+  var eyeOn=cfg.mode==="eye";
+  $("eyeBar").style.display=eyeOn?"flex":"none"; $("eyeAskBar").style.display=eyeOn?"flex":"none";
+  $("langs").style.display=eyeOn?"none":"flex";
   var pt=$("phoneTips"); pt.style.display=cfg.mode==="phone"?"flex":"none"; pt.innerHTML="";
   if(cfg.mode==="phone"){
     var PH={ja:[["请慢点说","翻訳アプリを使って話しています。少しゆっくり話していただけますか。"],["请再说一遍","すみません、もう一度お願いします。"],["请稍等","少々お待ちください。"]],
@@ -328,6 +348,7 @@ function applyCfg(){
 }
 function renderEmpty(){
   if(cfg.mode==="coach"){ if(!coach.items.length) coachEmpty(); return }
+  if(cfg.mode==="eye"){ if(!eye.items.length) eyeEmpty(); return }
   if(segs.length||nf.src||nf.tr) return;
   var h;
   if(!cfg.key){
@@ -412,6 +433,7 @@ function trTarget(){
 }
 function onTokens(tokens){
   if(cfg.mode==="coach"){ coachTokens(tokens); return }
+  if(cfg.mode==="eye"){ eyeTokens(tokens); return }
   var nSrc="",nTr="",nLang=null,nSpk=null,newSrcStarted=false;
   for(var i=0;i<tokens.length;i++){
     var t=tokens[i], txt=t.text||"";
@@ -534,6 +556,7 @@ function resumeMic(){
 }
 function curRate(){ // 内容积压时自动加快，跟上广播
   if(cfg.mode==="coach") return cfg.coachRate||1;
+  if(cfg.mode==="eye") return cfg.rate||1;
   var r=cfg.rate||1, q=sayQ.length;
   if(q>=1) r+=0.1; if(q>=2) r+=0.15; if(q>=4) r+=0.15;
   return Math.min(1.8,r);
@@ -590,7 +613,7 @@ function nextSay(){
 }
 /* 什么时候读、读哪种语言 */
 function readTarget(s){
-  if(cfg.mode==="coach") return null;
+  if(cfg.mode==="coach"||cfg.mode==="eye") return null;
   if(cfg.mode==="phone") return (s.lang===cfg.my&&cfg.readPhone)?cfg.other:null;
   if(cfg.mode==="talk"){
     if(s.lang===cfg.my) return cfg.readMe?cfg.other:null;     // 我说中文 → 读日语给对方
@@ -661,7 +684,10 @@ function buildConfig(withKey){
   var c={model:cfg.model||"stt-rt-v6",audio_format:"pcm_s16le",sample_rate:(wsRate=curRateHz()),num_channels:1,
     enable_language_identification:true,enable_endpoint_detection:true};
   if(withKey) c.api_key=cfg.key;
-  if(cfg.mode==="coach"){
+  if(cfg.mode==="eye"){
+    c.language_hints=[cfg.my,cfg.other];
+    c.max_endpoint_delay_ms=1500;
+  }else if(cfg.mode==="coach"){
     c.language_hints=[cfg.other,cfg.my];
     c.max_endpoint_delay_ms=2000;   // 学习者说话会停顿，多等一会儿再判断说完
   }else if(cfg.mode!=="listen"){
@@ -892,7 +918,7 @@ function acquireWake(){
 function start(){
   if(running) return;
   if(!cfg.key){ openSheet(); toast("请先粘贴 Soniox API Key。",true); return }
-  if(cfg.mode==="coach"&&!aiKey()){ openSheet(); toast("请先在「AI 陪练」里粘贴 "+AI[cfg.ai].name+" 的 Key。",true,5000); return }
+  if((cfg.mode==="coach"||cfg.mode==="eye")&&!aiKey()){ openSheet(); toast("请先在「AI 陪练」里粘贴 "+AI[cfg.ai].name+" 的 Key。",true,5000); return }
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
     toast("这个页面需要通过 https 网址打开才能使用麦克风。"); return;
   }
@@ -906,6 +932,7 @@ function start(){
     if(segs.length) segs[segs.length-1].ended=true;
     connect(true); acquireWake();
     if(cfg.mode==="coach") coachOnStart();
+    if(cfg.mode==="eye") eyeOnStart();
     clearInterval(tick); clearInterval(speakTick);
     tick=setInterval(watchdog,1000); speakTick=setInterval(checkSpeak,300); clearInterval(pumpTimer); pumpTimer=setInterval(pump,200);
   }).catch(function(e){
@@ -932,6 +959,7 @@ function stop(){
   if(wakeLock){ try{wakeLock.release()}catch(e){} wakeLock=null }
   if(synth) try{synth.cancel()}catch(e){}
   if(cfg.mode==="coach") coachOnStop();
+  if(cfg.mode==="eye") eyeOnStop();
   sayQ=[]; saying=false; micPaused=false; hideResume(); try{ if(player) player.pause() }catch(e){} setSession("auto"); resetGo(); diag();
   if(was&&!fatal) setStatus("","已停止");
   if(nf.src||nf.tr){ var s=segs[segs.length-1]; if(s){ s.src+=nf.src; if(nf.tr){s.tr+=nf.tr;s.gotTr=true} } nf.src="";nf.tr=""; render() }
@@ -958,6 +986,7 @@ $("btnFsUp").onclick=function(){cfg.fs=Math.min(48,cfg.fs+2);save("fs");applyCfg
 $("btnFsDown").onclick=function(){cfg.fs=Math.max(14,cfg.fs-2);save("fs");applyCfg()};
 function readLabel(){
   if(cfg.mode==="coach") return cfg.coachVoice?{on:true,t:"🔊"}:{on:false,t:"🔈"};
+  if(cfg.mode==="eye") return cfg.eyeVoice?{on:true,t:"🔊"}:{on:false,t:"🔈"};
   if(cfg.mode==="phone") return cfg.readPhone?{on:true,t:"🔊"+LANGS[cfg.other].slice(0,1)}:{on:false,t:"🔈"};
   if(cfg.mode==="listen") return cfg.readListen?{on:true,t:"🔊"+LANGS[cfg.my].slice(0,1)}:{on:false,t:"🔈"};
   if(cfg.readMe&&cfg.readThem) return {on:true,t:"🔊双"};
@@ -968,7 +997,10 @@ function readLabel(){
 $("btnTts").onclick=function(){
   unlockTts(); unlockPlayer();
   var msg;
-  if(cfg.mode==="coach"){
+  if(cfg.mode==="eye"){
+    cfg.eyeVoice=!cfg.eyeVoice; save("eyeVoice");
+    msg=cfg.eyeVoice?"讲解会读出来（只读要点）。":"讲解只显示文字。";
+  }else if(cfg.mode==="coach"){
     cfg.coachVoice=!cfg.coachVoice; save("coachVoice");
     msg=cfg.coachVoice?"AI 老师会开口说话。":"AI 老师只显示文字，不出声。";
   }else if(cfg.mode==="phone"){
@@ -991,6 +1023,11 @@ $("btnHs").onclick=function(){
 };
 var clearArmed=0;
 $("btnClear").onclick=function(){
+  if(cfg.mode==="eye"){
+    if(!eye.items.length) return;
+    if(Date.now()-clearArmed>3000){ clearArmed=Date.now(); toast("再点一次清空讲解记录。",true,3000); return }
+    clearArmed=0; eyeReset(); return;
+  }
   if(cfg.mode==="coach"){
     if(!coach.items.length) return;
     if(Date.now()-clearArmed>3000){ clearArmed=Date.now(); toast("再点一次，结束这次练习并清空（建议先看报告）。",true,3000); return }
@@ -1033,7 +1070,7 @@ function closeSheet(){
   cfg.rate=parseFloat($("selRate").value)||1; cfg.micId=$("selMic").value||""; cfg.spk=$("swSpk").checked; cfg.wake=$("swWake").checked;
   cfg.terms=$("inTerms").value.trim(); cfg.model=$("inModel").value.trim()||"stt-rt-v6"; cfg.src=$("selSrc").value;
   aiFormSave(); cfg.fix=$("selFix").value; cfg.coachRate=parseFloat($("selCoachRate").value)||1; cfg.sceneCustom=$("inScene").value.trim();
-  ["ai","aiKeys","aiModels","aiUrls","qwenReg","fix","coachRate","sceneCustom"].forEach(save);
+  ["ai","aiKeys","aiModels","aiUrls","aiVision","qwenReg","fix","coachRate","sceneCustom"].forEach(save);
   cfg.voiceSrc=$("selVoiceSrc").value; cfg.voice=$("selVoice").value||"Emma"; cfg.diag=$("swDiag").checked;
   ["key","my","other","showSrc","tts","spk","wake","terms","model","voiceSrc","voice","diag","readMe","readThem","readListen","readPhone","headset","rate","micId","boost"].forEach(save);
   if(node&&node.port) node.port.postMessage({boost:cfg.boost?6:1}); diag();
@@ -1065,7 +1102,7 @@ $("btnCopy").onclick=function(){
 var AI={
   openai:{name:"OpenAI",model:"gpt-5.4-mini",url:"https://api.openai.com/v1/chat/completions",fmt:"oa",
           hint:'到 <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a> → API keys 新建。'},
-  qwen:{name:"千问",model:"qwen-plus",fmt:"oa",
+  qwen:{name:"千问",model:"qwen-plus",vision:"qwen3-vl-plus",fmt:"oa",
         hint:'到阿里云百炼控制台 → API-KEY 新建。Key 分中国和国际两个地域，要选对。'},
   claude:{name:"Claude",model:"claude-sonnet-5-5",url:"https://api.anthropic.com/v1/messages",fmt:"claude",
           hint:'到 <a href="https://platform.claude.com" target="_blank" rel="noopener">platform.claude.com</a> 新建（不是 Claude 会员订阅）。'},
@@ -1083,13 +1120,15 @@ var aiFormProv=null;
 function aiFormLoad(){
   var p=$("selAi").value; aiFormProv=p;
   $("inAiKey").value=(cfg.aiKeys||{})[p]||""; $("inAiModel").value=(cfg.aiModels||{})[p]||"";
-  $("inAiModel").placeholder=AI[p].model||"必填"; $("inAiUrl").value=(cfg.aiUrls||{})[p]||"";
+  $("inAiModel").placeholder=AI[p].model||"必填";
+  $("inAiVision").value=(cfg.aiVision||{})[p]||""; $("inAiVision").placeholder=AI[p].vision||"同上面的模型"; $("inAiUrl").value=(cfg.aiUrls||{})[p]||"";
   $("lbAiKey").textContent=AI[p].name+" API Key（只存在这台设备上）"; $("aiHint").innerHTML=AI[p].hint;
   $("qwenRegWrap").style.display=p==="qwen"?"":"none"; $("selQwenReg").value=cfg.qwenReg;
 }
 function aiFormSave(){
   var p=aiFormProv||$("selAi").value;
   cfg.aiKeys=cfg.aiKeys||{}; cfg.aiModels=cfg.aiModels||{}; cfg.aiUrls=cfg.aiUrls||{};
+  cfg.aiVision=cfg.aiVision||{}; cfg.aiVision[p]=$("inAiVision").value.trim();
   cfg.aiKeys[p]=$("inAiKey").value.trim(); cfg.aiModels[p]=$("inAiModel").value.trim(); cfg.aiUrls[p]=$("inAiUrl").value.trim();
   cfg.qwenReg=$("selQwenReg").value; cfg.ai=$("selAi").value;
 }
@@ -1099,14 +1138,14 @@ $("selAi").onchange=function(){ aiFormSave(); aiFormLoad(); $("aiTestOut").textC
 var aiAbort=null;
 function aiCall(messages,system,opts){
   opts=opts||{};
-  var prov=cfg.ai, fmt=AI[prov].fmt, key=aiKey(), model=aiModel(), url=aiUrl();
+  var prov=cfg.ai, fmt=AI[prov].fmt, key=aiKey(), model=opts.model||aiModel(), url=aiUrl();
   if(!model) return Promise.reject(new Error("请在设置里填写「模型」"));
   var ctrl=window.AbortController?new AbortController():null; if(!opts.noAbortSave) aiAbort=ctrl;
   var maxTok=opts.max||700, stream=!!opts.onDelta;
   var body, headers={"Content-Type":"application/json"};
   if(fmt==="claude"){
     headers["x-api-key"]=key; headers["anthropic-version"]="2023-06-01"; headers["anthropic-dangerous-direct-browser-access"]="true";
-    body={model:model,max_tokens:maxTok,system:[{type:"text",text:system,cache_control:{type:"ephemeral"}}],messages:messages,stream:stream};
+    body={model:model,max_tokens:maxTok,system:[{type:"text",text:system,cache_control:{type:"ephemeral"}}],messages:messages.map(toClaudeMsg),stream:stream};
   }else{
     headers["Authorization"]="Bearer "+key;
     body={model:model,messages:[{role:"system",content:system}].concat(messages),stream:stream};
@@ -1159,6 +1198,14 @@ function aiCall(messages,system,opts){
   }
   return go();
 }
+function toClaudeMsg(m){
+  if(typeof m.content==="string") return m;
+  return {role:m.role,content:m.content.map(function(p){
+    if(p.type==="image_url"){ var u=p.image_url.url, mm=u.match(/^data:([^;]+);base64,(.*)$/); return {type:"image",source:{type:"base64",media_type:mm[1],data:mm[2]}} }
+    return p;
+  })};
+}
+function visionModel(){ return (cfg.aiVision||{})[cfg.ai]||AI[cfg.ai].vision||aiModel() }
 function aiErrText(st,t){
   var m=t; try{ var j=JSON.parse(t); m=(j.error&&(j.error.message||j.error.code))||j.message||t }catch(e){}
   m=String(m).slice(0,160);
@@ -1373,8 +1420,155 @@ function copyText(t,ok){
   else{ var ta=document.createElement("textarea"); ta.value=t; document.body.appendChild(ta); ta.select(); try{document.execCommand("copy");ok()}catch(e){} document.body.removeChild(ta) }
 }
 
+
+/* ===================== 看懂：拍照讲解 + 追问 ===================== */
+var eye={items:[],hist:[],img:null,userBuf:"",userEl:null,busy:false,streamDone:true,pendingSubmit:false};
+function eyeEmpty(){
+  var k=aiKey();
+  list.innerHTML='<div class="empty"><h2>看懂 · 拍照讲解</h2>'+
+    '看不懂的信件、通知、账单、菜单、招牌、说明书、商品包装、电脑屏幕……<br>'+
+    '1. 点上面的 <b>📷 拍照</b>（或从 🖼 相册选），AI 用中文告诉你：这是什么、重点是什么、你该怎么做。<br>'+
+    '2. 还有不明白的：在下面<b>打字</b>，或点「开始」<b>直接说中文</b>追问。<br>'+
+    '3. 需要跟人沟通时，让它教你一句日语怎么说。<br>'+
+    '老师：<b>'+AI[cfg.ai].name+'</b>（看图模型 '+escH(visionModel()||"未填")+'）'+(k?'':' — <span style="color:var(--danger)">还没填 Key</span>')+
+    '<br><button class="cta" id="ctaEyeCam">📷 拍照</button></div>';
+  var c=$("ctaEyeCam"); if(c) c.onclick=function(){ $("eyeFileCam").click() };
+}
+function eyeBubble(role){
+  if(!eye.items.length) list.innerHTML="";
+  var el=document.createElement("div"); el.className="seg"+(role==="me"?" me":" ai");
+  list.appendChild(el); eye.items.push(el); return el;
+}
+function eyeReset(){
+  if(aiAbort) try{aiAbort.abort()}catch(e){}
+  sayQ=[]; try{ if(player) player.pause() }catch(e){}
+  eye.items=[]; eye.hist=[]; eye.img=null; eye.userBuf=""; eye.userEl=null; eye.busy=false; eye.streamDone=true; eye.pendingSubmit=false;
+  list.innerHTML=""; eyeEmpty();
+}
+function eyeOnStart(){ clearInterval(eye.timer); eye.timer=setInterval(eyeTick,250); toast("请用中文提问（关于刚才的照片，或任何问题）。",true,2500) }
+function eyeOnStop(){ clearInterval(eye.timer); if(aiAbort) try{aiAbort.abort()}catch(e){} eye.busy=false; eye.streamDone=true }
+function eyeTick(){ if(eye.busy&&eye.streamDone&&!saying&&!sayQ.length){ eye.busy=false; if(eye.pendingSubmit) eyeSubmitVoice() } }
+
+function eyeSys(){
+  return [
+    "你是用户在日本生活的贴身助手兼日语老师。用户是在日本生活和工作的中国人（母语中文，日语约 JLPT N3）。",
+    "用户会拍下看不懂的东西：信件、行政通知、账单、合同、学校通知、菜单、招牌、说明书、商品包装、电脑或手机屏幕等，并用中文提问。",
+    "回答要求：",
+    "1. 第一行以「SAY:」开头，用 2～4 句口语化中文说清楚最重要的结论（这是什么、要不要处理、截止时间/金额/要做什么）。这一行会被朗读，所以不要包含日语、符号或网址。",
+    "2. 之后换行写详细讲解（中文为主）：逐条解释关键内容；引用日语原文时用「」括起来，难读的汉字在后面用花括号标假名，例如「納付期限{のうふきげん}」，再加中文意思。",
+    "3. 告诉他接下来具体怎么做；如果需要和别人说话（窗口、店员、老师、电话），给出可以直接说的日语句子（同样标读音）和中文意思。",
+    "4. 涉及截止日期、罚款、费用、需要盖章或带证件等重要事项，要明确提醒。",
+    "5. 看不清或不确定的地方，直接说看不清，请他靠近重拍，绝不编造。",
+    "6. 不要用 markdown 符号（#、*、表格），用「1. 2. 3.」编号和换行。追问时直接回答问题，同样先写 SAY: 行。"
+  ].join("\n");
+}
+function shrinkImage(file){ // 压缩到最长边 1600，省流量、加快
+  return new Promise(function(res,rej){
+    var url=URL.createObjectURL(file), im=new Image();
+    im.onload=function(){
+      var max=1600, w=im.naturalWidth, h=im.naturalHeight, k=Math.min(1,max/Math.max(w,h));
+      var c=document.createElement("canvas"); c.width=Math.round(w*k); c.height=Math.round(h*k);
+      c.getContext("2d").drawImage(im,0,0,c.width,c.height); URL.revokeObjectURL(url);
+      res(c.toDataURL("image/jpeg",0.82));
+    };
+    im.onerror=function(){ URL.revokeObjectURL(url); rej(new Error("图片打不开，请换一张或重拍")) };
+    im.src=url;
+  });
+}
+function onEyeFile(e){
+  var f=e.target.files&&e.target.files[0]; e.target.value="";
+  if(!f) return;
+  if(!aiKey()){ openSheet(); toast("请先在「AI 陪练」里填 AI Key（看懂和陪练共用）。",true,5000); return }
+  unlockTts(); unlockPlayer();
+  shrinkImage(f).then(function(d){
+    eye.hist=[]; eye.img=d;                 // 新照片 = 新话题
+    var me=eyeBubble("me"); me.innerHTML='<img class="eyeimg" src="'+d+'">';
+    eyeAsk("请帮我看懂这张图片：这是什么？重点是什么？我需要做什么？",d);
+  },function(err){ toast(err.message,false,5000) });
+}
+$("eyeFileCam").onchange=onEyeFile; $("eyeFilePick").onchange=onEyeFile;
+$("eyeCam").onclick=function(){ $("eyeFileCam").click() };
+$("eyePick").onclick=function(){ $("eyeFilePick").click() };
+$("eyeNew").onclick=function(){ eyeReset(); toast("已开始新话题。",true,1500) };
+$("eyeAskBar").onsubmit=function(ev){
+  ev.preventDefault();
+  var t=$("eyeInput").value.trim(); if(!t) return;
+  if(!aiKey()){ openSheet(); return }
+  unlockTts(); unlockPlayer();
+  $("eyeInput").value=""; $("eyeInput").blur();
+  var me=eyeBubble("me"); me.innerHTML='<div class="tr"></div>'; me.firstChild.textContent=t;
+  eyeAsk(t,null);
+};
+/* 语音追问 */
+function eyeTokens(tokens){
+  var fin="", part="", ended=false;
+  for(var i=0;i<tokens.length;i++){ var t=tokens[i], x=t.text||"";
+    if(x==="<end>"||x==="<fin>"){ ended=true; continue }
+    if(t.translation_status==="translation") continue;
+    if(t.is_final) fin+=x; else part+=x; }
+  if(fin) eye.userBuf+=fin;
+  var show=(eye.userBuf+part).trim();
+  if(show){
+    if(!eye.userEl){ eye.userEl=eyeBubble("me"); eye.userEl.innerHTML='<div class="tr"></div>' }
+    eye.userEl.firstChild.innerHTML=escH(eye.userBuf)+'<span style="opacity:.5">'+escH(part)+'</span>';
+    list.scrollTop=list.scrollHeight;
+  }
+  if(ended&&eye.userBuf.trim()){ if(eye.busy) eye.pendingSubmit=true; else eyeSubmitVoice() }
+}
+function eyeSubmitVoice(){
+  var t=eye.userBuf.trim(); if(!t) return;
+  if(eye.userEl) eye.userEl.firstChild.textContent=t;
+  eye.userBuf=""; eye.userEl=null; eye.pendingSubmit=false;
+  eyeAsk(t,null);
+}
+function eyeAsk(q,img){
+  eye.busy=true; eye.streamDone=false;
+  var content=img?[{type:"image_url",image_url:{url:img}},{type:"text",text:q}]:q;
+  eye.hist.push({role:"user",content:content});
+  // 追问时保留第一张图片（放在最前面），其余只保留最近的文字对话
+  var msgs=eye.hist.length>16?[eye.hist[0]].concat(eye.hist.slice(-15)):eye.hist;
+  var el=eyeBubble("ai"); el.innerHTML='<div class="say"><span class="typing">正在看…</span></div><div class="detail"></div>';
+  list.scrollTop=list.scrollHeight;
+  var spoken=0, sayDone=false;
+  function parse(full){
+    var m=full.match(/^\s*SAY\s*[:：]\s*([^\n]*)(\n([\s\S]*))?$/i);
+    if(m) return {say:m[1],detail:(m[3]||"").replace(/^\s+/,""),sayOpen:!m[2]};
+    return {say:"",detail:full,sayOpen:false};
+  }
+  function speakSay(t,all){
+    if(!cfg.eyeVoice||sayDone) return;
+    var rest=t.slice(spoken), cut=-1, mm, re=/[。！？!?]+/g;
+    if(all){ if(rest.trim()) say(rest,cfg.my); spoken=t.length; sayDone=true; return }
+    while((mm=re.exec(rest))) cut=mm.index+mm[0].length;
+    if(cut>0){ say(rest.slice(0,cut),cfg.my); spoken+=cut }
+  }
+  return aiCall(msgs,eyeSys(),{model:visionModel(),max:1500,
+    onRetry:function(n){ el.firstChild.innerHTML='<span class="typing">网络不稳，正在重试（'+n+'）…</span>' },
+    onDelta:function(piece,full){
+      var p=parse(full);
+      el.firstChild.innerHTML=p.say?rubyH(p.say):'<span class="typing">正在看…</span>';
+      el.children[1].innerHTML=rubyH(p.detail);
+      if(p.say) speakSay(p.say,!p.sayOpen);
+      if(nearBottom()) list.scrollTop=list.scrollHeight;
+    }}).then(function(full){
+      var p=parse(full);
+      el.firstChild.innerHTML=rubyH(p.say||""); el.children[1].innerHTML=rubyH(p.detail);
+      if(!p.say) el.firstChild.style.display="none";
+      speakSay(p.say||"",true);
+      eye.hist.push({role:"assistant",content:full});
+      eye.streamDone=true; if(!running) eye.busy=false;
+    },function(e){
+      eye.streamDone=true; eye.busy=false; eye.hist.pop();
+      if(e&&e.name==="AbortError"){ el.remove(); return }
+      var msg=(e&&e.message||String(e));
+      if(/404|model/i.test(msg)) msg+="\n（看图模型可能不对：千问请用 qwen3-vl-plus 等视觉模型，在 ⚙ →「看懂」用的看图模型 里修改）";
+      el.innerHTML='<div class="fix" style="background:#3a1512;color:#ffd9d4;white-space:pre-wrap">'+escH(msg)+'</div><button class="cta" style="margin-top:8px;padding:9px 16px">🔄 重试</button>';
+      el.querySelector("button").onclick=function(){ el.remove(); eye.items=eye.items.filter(function(x){return x!==el}); eyeAsk(q,img) };
+    });
+}
+
 /* 测试钩子（开发用） */
-window.__y0={coach:function(){return coach},ctx:function(){return audioCtx},mic:function(){return micStream},err:function(m){onServerError(m)},onTokens:onTokens,cfg:cfg,segs:function(){return segs},applyCfg:applyCfg};
+window.__y0={eye:function(){return eye},coach:function(){return coach},ctx:function(){return audioCtx},mic:function(){return micStream},err:function(m){onServerError(m)},onTokens:onTokens,cfg:cfg,segs:function(){return segs},applyCfg:applyCfg};
 
 applyCfg(); renderEmpty(); diag();
 /* 自动更新：打开或切回 App 时检查新版本，有就自动刷新（绕过手机缓存） */
