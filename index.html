@@ -148,9 +148,18 @@ footer{padding:8px 14px calc(10px + var(--sab));background:linear-gradient(180de
 <div class="langs" id="phoneTips" style="display:none"></div>
 <div class="langs" id="coachBar" style="display:none"></div>
 <div class="langs" id="eyeBar" style="display:none">
-  <button id="eyeCam" class="sel">📷 拍照</button><button id="eyePick">🖼 相册</button><button id="eyeNew">🆕 新话题</button>
+  <button id="eyeLiveBtn" class="sel">🎥 实时看</button><button id="eyeCam">📷 拍照</button><button id="eyePick">🖼 相册</button><button id="eyeNew">🆕 新话题</button>
   <input type="file" id="eyeFileCam" accept="image/*" capture="environment" style="display:none">
   <input type="file" id="eyeFilePick" accept="image/*" style="display:none">
+</div>
+<div id="eyeLive" style="display:none;position:relative;margin:0 14px 8px;border-radius:16px;overflow:hidden;background:#000;height:32vh">
+  <video id="eyeVideo" playsinline muted autoplay style="width:100%;height:100%;object-fit:cover;display:block"></video>
+  <div id="eyeLiveTip" style="position:absolute;left:0;right:0;bottom:0;padding:10px 12px;background:linear-gradient(transparent,rgba(0,0,0,.75));color:#fff;font-size:14px;font-weight:700;pointer-events:none">👆 点画面讲解 · 或点「开始」直接问</div>
+  <div style="position:absolute;top:8px;right:8px;display:flex;gap:6px">
+    <button id="eyeAuto" class="chip" style="height:36px;min-width:0;font-size:13px;background:rgba(0,0,0,.55);color:#fff">🔁 自动:关</button>
+    <button id="eyeLiveOff" class="chip" style="height:36px;min-width:36px;background:rgba(0,0,0,.55);color:#fff">✕</button>
+  </div>
+  <div id="eyeFlash" style="position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .25s"></div>
 </div>
 <main id="list"></main>
 <div class="toast" id="toast"></div>
@@ -245,7 +254,7 @@ footer{padding:8px 14px calc(10px + var(--sab));background:linear-gradient(180de
   </div>
   <label class="sw"><span>显示诊断信息<small>出问题时打开，截图发给开发者</small></span><input type="checkbox" id="swDiag"></label>
   <button class="btn-line" id="btnCopy">复制全部记录</button>
-  <div class="hint" style="text-align:center;color:var(--dim);font-size:12px;margin-top:12px">版本 2.4</div>
+  <div class="hint" style="text-align:center;color:var(--dim);font-size:12px;margin-top:12px">版本 2.5</div>
 </div>
 
 <div class="report" id="report">
@@ -323,6 +332,7 @@ function applyCfg(){
   var eyeOn=cfg.mode==="eye";
   $("eyeBar").style.display=eyeOn?"flex":"none"; $("eyeAskBar").style.display=eyeOn?"flex":"none";
   $("langs").style.display=eyeOn?"none":"flex";
+  if(!eyeOn&&typeof liveOff==="function") liveOff();
   var pt=$("phoneTips"); pt.style.display=cfg.mode==="phone"?"flex":"none"; pt.innerHTML="";
   if(cfg.mode==="phone"){
     var PH={ja:[["请慢点说","翻訳アプリを使って話しています。少しゆっくり話していただけますか。"],["请再说一遍","すみません、もう一度お願いします。"],["请稍等","少々お待ちください。"]],
@@ -1445,7 +1455,11 @@ function eyeReset(){
   eye.items=[]; eye.hist=[]; eye.img=null; eye.userBuf=""; eye.userEl=null; eye.busy=false; eye.streamDone=true; eye.pendingSubmit=false;
   list.innerHTML=""; eyeEmpty();
 }
-function eyeOnStart(){ clearInterval(eye.timer); eye.timer=setInterval(eyeTick,250); toast("请用中文提问（关于刚才的照片，或任何问题）。",true,2500) }
+function eyeOnStart(){
+  clearInterval(eye.timer); eye.timer=setInterval(eyeTick,250);
+  if(!live.on) liveOn();     // 开始 = 打开实时画面 + 语音对话
+  toast("边看边聊：对准东西，直接用中文问。每次提问都会带上当前画面。",true,3500);
+}
 function eyeOnStop(){ clearInterval(eye.timer); if(aiAbort) try{aiAbort.abort()}catch(e){} eye.busy=false; eye.streamDone=true }
 function eyeTick(){ if(eye.busy&&eye.streamDone&&!saying&&!sayQ.length){ eye.busy=false; if(eye.pendingSubmit) eyeSubmitVoice() } }
 
@@ -1487,7 +1501,7 @@ function onEyeFile(e){
   },function(err){ toast(err.message,false,5000) });
 }
 $("eyeFileCam").onchange=onEyeFile; $("eyeFilePick").onchange=onEyeFile;
-$("eyeCam").onclick=function(){ $("eyeFileCam").click() };
+$("eyeCam").onclick=function(){ liveOff(); $("eyeFileCam").click() };
 $("eyePick").onclick=function(){ $("eyeFilePick").click() };
 $("eyeNew").onclick=function(){ eyeReset(); toast("已开始新话题。",true,1500) };
 $("eyeAskBar").onsubmit=function(ev){
@@ -1497,7 +1511,7 @@ $("eyeAskBar").onsubmit=function(ev){
   unlockTts(); unlockPlayer();
   $("eyeInput").value=""; $("eyeInput").blur();
   var me=eyeBubble("me"); me.innerHTML='<div class="tr"></div>'; me.firstChild.textContent=t;
-  eyeAsk(t,null);
+  eyeAsk(t,liveFrame());
 };
 /* 语音追问 */
 function eyeTokens(tokens){
@@ -1519,14 +1533,20 @@ function eyeSubmitVoice(){
   var t=eye.userBuf.trim(); if(!t) return;
   if(eye.userEl) eye.userEl.firstChild.textContent=t;
   eye.userBuf=""; eye.userEl=null; eye.pendingSubmit=false;
-  eyeAsk(t,null);
+  eyeAsk(t,liveFrame());
 }
-function eyeAsk(q,img){
+function eyeAsk(q,img,brief){
   eye.busy=true; eye.streamDone=false;
   var content=img?[{type:"image_url",image_url:{url:img}},{type:"text",text:q}]:q;
   eye.hist.push({role:"user",content:content});
   // 追问时保留第一张图片（放在最前面），其余只保留最近的文字对话
-  var msgs=eye.hist.length>16?[eye.hist[0]].concat(eye.hist.slice(-15)):eye.hist;
+  var lastImg=-1; for(var hi=eye.hist.length-1;hi>=0;hi--){ if(typeof eye.hist[hi].content!=="string"){ lastImg=hi; break } }
+  var msgs=eye.hist.map(function(m,i){
+    if(typeof m.content==="string"||i===lastImg) return m;
+    return {role:m.role,content:"（之前的画面）"+m.content.filter(function(p){return p.type==="text"}).map(function(p){return p.text}).join(" ")};
+  });
+  if(msgs.length>16) msgs=msgs.slice(-16);
+  while(msgs.length&&msgs[0].role!=="user") msgs.shift();
   var el=eyeBubble("ai"); el.innerHTML='<div class="say"><span class="typing">正在看…</span></div><div class="detail"></div>';
   list.scrollTop=list.scrollHeight;
   var spoken=0, sayDone=false;
@@ -1542,7 +1562,7 @@ function eyeAsk(q,img){
     while((mm=re.exec(rest))) cut=mm.index+mm[0].length;
     if(cut>0){ say(rest.slice(0,cut),cfg.my); spoken+=cut }
   }
-  return aiCall(msgs,eyeSys(),{model:visionModel(),max:1500,
+  return aiCall(msgs,eyeSys()+(brief?"\n本次是自动讲解：只写 SAY 行和最多 3 条要点，越短越好。":""),{model:visionModel(),max:brief?500:1500,
     onRetry:function(n){ el.firstChild.innerHTML='<span class="typing">网络不稳，正在重试（'+n+'）…</span>' },
     onDelta:function(piece,full){
       var p=parse(full);
@@ -1563,9 +1583,79 @@ function eyeAsk(q,img){
       var msg=(e&&e.message||String(e));
       if(/404|model/i.test(msg)) msg+="\n（看图模型可能不对：千问请用 qwen3-vl-plus 等视觉模型，在 ⚙ →「看懂」用的看图模型 里修改）";
       el.innerHTML='<div class="fix" style="background:#3a1512;color:#ffd9d4;white-space:pre-wrap">'+escH(msg)+'</div><button class="cta" style="margin-top:8px;padding:9px 16px">🔄 重试</button>';
-      el.querySelector("button").onclick=function(){ el.remove(); eye.items=eye.items.filter(function(x){return x!==el}); eyeAsk(q,img) };
+      el.querySelector("button").onclick=function(){ el.remove(); eye.items=eye.items.filter(function(x){return x!==el}); eyeAsk(q,img,brief) };
     });
 }
+
+
+/* ---------- 实时取景：点画面 / 开口问 / 自动讲解 ---------- */
+var live={stream:null,on:false,auto:false,timer:null,sig:null,lastSig:null,stableSince:0,lastAuto:0};
+function liveOn(){
+  if(live.on) return;
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ toast("这个浏览器不能打开摄像头。",false,5000); return }
+  navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}},audio:false}).then(function(st){
+    live.stream=st; live.on=true;
+    var v=$("eyeVideo"); v.srcObject=st; var p=v.play(); if(p&&p.catch) p.catch(function(){});
+    $("eyeLive").style.display="block"; $("eyeLiveBtn").textContent="🎥 关闭";
+    clearInterval(live.timer); live.timer=setInterval(liveWatch,700);
+    if(!eye.items.length){ list.innerHTML='<div class="empty">对准看不懂的东西：<br>👆 <b>点画面</b>马上讲解；或点「开始」<b>直接问</b>「这是什么？」「这里写的什么？」<br>右上角 🔁 打开后，画面换了新内容会自动讲一句。</div>' }
+  },function(e){
+    var n=e&&e.name; toast(n==="NotAllowedError"?"没有摄像头权限：请在 iPhone 设置 → Safari → 相机 里允许。":"摄像头打不开："+(e&&e.message||e),false,7000);
+  });
+}
+function liveOff(){
+  clearInterval(live.timer); live.timer=null;
+  if(live.stream) try{ live.stream.getTracks().forEach(function(t){t.stop()}) }catch(e){}
+  live.stream=null; live.on=false; live.sig=live.lastSig=null;
+  var v=$("eyeVideo"); if(v) v.srcObject=null;
+  $("eyeLive").style.display="none"; $("eyeLiveBtn").textContent="🎥 实时看";
+}
+function liveFrame(){ // 抓当前画面（没开摄像头就返回 null）
+  var v=$("eyeVideo"); if(!live.on||!v.videoWidth) return null;
+  var max=1600, w=v.videoWidth, h=v.videoHeight, k=Math.min(1,max/Math.max(w,h));
+  var c=document.createElement("canvas"); c.width=Math.round(w*k); c.height=Math.round(h*k);
+  c.getContext("2d").drawImage(v,0,0,c.width,c.height);
+  var f=$("eyeFlash"); f.style.opacity=".6"; setTimeout(function(){ f.style.opacity="0" },120);
+  return c.toDataURL("image/jpeg",0.8);
+}
+function liveSig(){ // 32x24 灰度缩略，用来判断画面有没有换
+  var v=$("eyeVideo"); if(!v.videoWidth) return null;
+  var c=liveSig.c||(liveSig.c=document.createElement("canvas")); c.width=32; c.height=24;
+  var g=c.getContext("2d",{willReadFrequently:true}); g.drawImage(v,0,0,32,24);
+  var d=g.getImageData(0,0,32,24).data, out=new Uint8Array(768);
+  for(var i=0;i<768;i++) out[i]=(d[i*4]*3+d[i*4+1]*4+d[i*4+2])>>3;
+  return out;
+}
+function sigDiff(a,b){ if(!a||!b) return 255; var s=0; for(var i=0;i<a.length;i++) s+=Math.abs(a[i]-b[i]); return s/a.length }
+function liveWatch(){
+  if(!live.on||!live.auto||document.visibilityState!=="visible") return;
+  var cur=liveSig(); if(!cur) return;
+  var now=Date.now(), moving=sigDiff(cur,live.sig)>6; live.sig=cur;
+  if(moving){ live.stableSince=now; return }
+  var changed=sigDiff(cur,live.lastSig)>18;               // 和上次讲解的画面相比有明显变化
+  if(changed&&now-live.stableSince>1200&&now-live.lastAuto>8000&&!eye.busy&&!saying&&!sayQ.length){
+    live.lastAuto=now; live.lastSig=cur;
+    var img=liveFrame(); if(!img) return;
+    var me=eyeBubble("me"); me.innerHTML='<img class="eyeimg" style="max-height:12vh;width:auto" src="'+img+'">';
+    eyeAsk("（自动）画面换了，简短告诉我这是什么、重点是什么。",img,true);
+  }
+}
+$("eyeLiveBtn").onclick=function(){ if(live.on) liveOff(); else { unlockTts(); unlockPlayer(); liveOn() } };
+$("eyeLiveOff").onclick=function(ev){ ev.stopPropagation(); liveOff() };
+$("eyeAuto").onclick=function(ev){
+  ev.stopPropagation(); live.auto=!live.auto; live.lastSig=null; live.lastAuto=0;
+  this.textContent=live.auto?"🔁 自动:开":"🔁 自动:关"; this.style.background=live.auto?"var(--accent)":"rgba(0,0,0,.55)"; this.style.color=live.auto?"var(--accent-ink)":"#fff";
+  toast(live.auto?"自动讲解已开：画面换了新东西并停稳后，会自动讲一句。（每次都会调用 AI，注意费用）":"自动讲解已关。",true,3500);
+};
+$("eyeVideo").onclick=function(){
+  if(!aiKey()){ openSheet(); return }
+  unlockTts(); unlockPlayer();
+  var img=liveFrame(); if(!img) return;
+  live.lastSig=liveSig(); live.lastAuto=Date.now();
+  var me=eyeBubble("me"); me.innerHTML='<img class="eyeimg" style="max-height:12vh;width:auto" src="'+img+'">';
+  eyeAsk("请帮我看懂画面里的内容：这是什么？重点是什么？我需要做什么？",img);
+};
+document.addEventListener("visibilitychange",function(){ if(document.visibilityState==="hidden"&&live.on) liveOff() });
 
 /* 测试钩子（开发用） */
 window.__y0={eye:function(){return eye},coach:function(){return coach},ctx:function(){return audioCtx},mic:function(){return micStream},err:function(m){onServerError(m)},onTokens:onTokens,cfg:cfg,segs:function(){return segs},applyCfg:applyCfg};
